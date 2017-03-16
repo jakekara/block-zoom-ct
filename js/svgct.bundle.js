@@ -87,7 +87,7 @@ smap.prototype.add_to = function(map)
 {
     this.__svg = map.__svg;
     this.height(map.height());
-    this.width(map.width);
+    this.width(map.width());
     this.projection(map.projection());
     this.container(map.container());
 
@@ -180,29 +180,40 @@ smap.prototype.zoom_to = function(d)
 	k = 4;
 	this.__centered = d;
     } else {
-	x = width / 2;
-	y = height / 2;
-	k = 1;
+	// x = width / 2;
+	// y = height / 2;
+	// k = 1;
 	this.__centered = null;
+	this.zoom_out();
     }
 
 
-    var trans = "translate(" + width / 2 + ","
-	+ height / 2 + ")scale(" + k + ")translate(" + -x + "," + -y + ")";
+    var bounds = path.bounds(d),
+	dx = bounds[1][0] - bounds[0][0],
+	dy = bounds[1][1] - bounds[0][1],
+	x = (bounds[0][0] + bounds[1][0]) / 2,
+	y = (bounds[0][1] + bounds[1][1]) / 2,
+	scale = .9 / Math.max(dx / width, dy / height),
+	translate = [width / 2 - scale * x, height / 2 - scale * y];
 
-    var stroke = 1.5 / k + "px";
+    var trans = "translate(" + translate + ")scale(" + scale + ")";
+    var stroke = 1.5 / scale;
+    console.log("zoom_to", this.width(), this.height(), this, trans, stroke);	     
 
     // this.__g.selectAll("path")
     this.__svg.selectAll("path")
+        .style("stroke-width", stroke + "px")
         .classed("active", this.__centered && function(d) {
 	    return d === this.__centered; });
-    
+
     // this.__g.transition()
     this.__svg.selectAll("g")
 	.transition()
         .duration(dur)
         .attr("transform", trans)
-        .style("stroke-width", stroke);
+
+    
+        // .style("stroke-width", stroke);
 
     for ( var i in this.__layers )
     {
@@ -219,6 +230,14 @@ smap.prototype.zoom_to = function(d)
     this.width(width);
 }
 
+smap.prototype.zoom_out = function()
+{
+    this.__g.transition()
+        .duration(500)
+        .style("stroke-width", "1.5px")
+        .attr("transform", "");
+    
+}
 
 /* pass a function to color all features */
 smap.prototype.color = function(f)
@@ -295,6 +314,7 @@ const smap = require("./smap.js").smap;
 
 
 var index;
+var loaded_objs = {};
 
 var ct_towns = function(selection)
 {
@@ -344,13 +364,23 @@ var set_index = function(d){
 
 add_block = function( block_no )
 {
-    return new smap()
-	.add_to(townmap)
-	.topojson("shapes/" + block_no + ".topojson")
-	.features(function(topo){
-	    return topo["objects"];
-	})
-	.draw();
+    // return from cache if possible
+    if (loaded_objs.hasOwnProperty(block_no) < 0)
+    {
+    }
+    // otherwise, load it
+    else
+    {
+	loaded_objs[block_no] = new smap()
+	    .add_to(townmap)
+	    .topojson("shapes/" + block_no + ".topojson")
+	    .features(function(topo){
+		return topo["objects"];
+	    })
+	    .draw();
+    }
+
+    return loaded_objs[block_no];;    
 
 }
 
@@ -421,6 +451,12 @@ var make_zoomy = function()
 		    }
 		}
 
+		layers.forEach(function(a){
+		    a.__g.selectAll(".subobj")
+			.on("click", function(d){
+			    a.zoom_to(d);
+			});
+		});
 		
 		townmap.zoom_to(d);
 	    }
