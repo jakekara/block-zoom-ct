@@ -1,0 +1,37 @@
+body
+{
+    background-color: white;
+}
+
+svg 
+{
+    /* fill: white; */
+    /* background-color: white; */
+    /* fill: none; */
+}
+
+path
+{
+    fill-opacity: 0;
+    fill: none;
+}
+		      
+
+path.town
+{
+    stroke: gray;
+    fill: white;
+    fill-opacity: 1;
+}
+
+path.town.zoomed{
+    pointer-events: none; 
+    fill-opacity: 0.0;
+}
+
+path.block
+{
+    stroke: white;
+    fill:gray;
+    fill-opacity: 1;
+}
