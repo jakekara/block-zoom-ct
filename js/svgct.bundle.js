@@ -560,6 +560,7 @@ var make_zoomy = function()
 		townmap.zoom_to(d);
 
 	    }
+	    d3.selectAll("g").classed("closeup", true);
 	    d3.selectAll("path.town").classed("zoomed", false);
 	    d3.select(this).classed("zoomed", true);
 	    zoom_when_loaded();
@@ -584,6 +585,7 @@ var make_zoomy = function()
 }
 
 zoomout = function(){
+    d3.selectAll("g").classed("closeup", false);
     // standend(townmap.__svg);
     townmap.zoom_out.call(townmap);
     d3.selectAll("path.town").classed("zoomed", false);

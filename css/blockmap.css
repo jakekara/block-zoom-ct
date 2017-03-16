@@ -16,12 +16,16 @@ path
     fill: none;
 }
 		      
-
 path.town
 {
     stroke: gray;
     fill: white;
     fill-opacity: 1;
+}
+
+.closeup path.town
+{
+    fill-opacity:0.9;
 }
 
 path.town.zoomed{
