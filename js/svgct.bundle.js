@@ -119,7 +119,9 @@ smap.prototype.add_svg = function(svg)
 	this.__g.remove();
     }
 
-    this.__g = this.__svg.append("g")
+    
+    // this.__g = this.__svg.append("g")
+    this.__g =    this.__svg.insert("g",":first-child")
 	.classed("smap_layer", true);
 
     this.__element = this.container().node();
@@ -134,7 +136,8 @@ smap.prototype.add_features = function()
     var path = this.__path;
 
     var features = this.features()(this.__topojson);
-    
+
+
     this.__g.append("path")
 	.datum(features)
 	.attr("d", path)
@@ -145,12 +148,13 @@ smap.prototype.add_features = function()
     var that = this;
     this.__g.selectAll(".subobj")
 	.data(features.features)
-	.enter().append("path")
+	.enter()
+	.append("path")
 	.classed("subobj", true)
 	.attr("data-obj-name", function(d){ return d.id; })
-	.style("fill","white")
+	// .style("fill","white")
 	.style("stroke-width", "1")
-	.style("stroke","gray")
+	// .style("stroke","gray")
 	.attr("d", path)
 	// .on("click",function(d){
 
@@ -228,14 +232,41 @@ smap.prototype.zoom_to = function(d)
     
     this.height(height);
     this.width(width);
+    // this.standout();
 }
+
+// smap.prototype.standout = function()
+// {
+//     this.__svg.selectAll("defs").remove();
+//     this.__svg.append("defs")
+// 	.append("mask")
+// 	.attr("id", "map-mask")
+// 	.style("fill","#00ff00")
+// 	.html(this.__g.html())
+
+//     this.__svg.selectAll("g")
+// 	.attr("mask","url(#map-mask)");
+// }
+
+// smap.prototype.standend = function()
+// {
+//     this.__svg.selectAll("defs").remove();
+//     this.__svg.selectAll("g")
+// 	.attr("mask", null);
+// }
 
 smap.prototype.zoom_out = function()
 {
-    this.__g.transition()
+
+    this.__svg.selectAll("g").transition()
         .duration(500)
-        .style("stroke-width", "1.5px")
+        // .style("stroke-width", "1.5px")
         .attr("transform", "");
+
+    // for ( var i in this.__layers )
+    // {
+    // 	this.__layers[i].zoom_out();
+    // }
     
 }
 
@@ -305,7 +336,6 @@ smap.prototype.draw = function(tries)
 },{"d3":3,"topojson":4}],2:[function(require,module,exports){
 /* 
  * svgct - Make a map of CT using smap.js
- *         
  */
 
 const d3 = require("d3");
@@ -347,9 +377,11 @@ var ct_towns = function(selection)
 }
 
 var townmap = ct_towns(d3.select("#container"))
-    .color(function(d){
-	return "white";
-    });
+    // .color(function(d){
+    // 	return "white";
+    // });
+
+
 
 
 d3.json("shapes/bbox-index.json", function(error, d){
@@ -385,19 +417,54 @@ add_block = function( block_no )
 }
 
 
-var find_slice = function(coords)
+var find_slice = function(bbox)
 {
     if (typeof(index) == "undefined")
 	throw ("index not yet loaded");
 
+    var projection = townmap.projection()(townmap.container().node());
+
+    var town_bl = projection.invert([bbox.x,(bbox.y + bbox.height)]);
+    var town_tr = projection.invert([(bbox.x + bbox.width), bbox.y]);
+
+
+    // console.log("town bbox", town_bl, town_tr, bbox);
+    
     var matches = index.filter(function(a){
+	
 	var bottom_left = [a.bbox[0], a.bbox[1]];
 	var top_right = [a.bbox[2], a.bbox[3]];
 
-	if ((coords[0] >= bottom_left[0] && coords[0] <= top_right[0]) &&
-	    (coords[1] >= bottom_left[1] && coords[1] <= top_right[1]))
+	var left = a.bbox[0];
+	var bottom = a.bbox[1];
+	var right = a.bbox[2];
+	var top = a.bbox[3];
+
+	// console.log(town_bl, town_tr, left, bottom, right, top);
+	
+	var x_overlap = function()
+	{
+	    if ( town_bl[0] > right ) return false;
+	    if ( town_tr[0] < left ) return false;
 	    return true;
+	}
+	var y_overlap = function()
+	{
+	    if ( town_bl[1] > top ) return false;
+	    if ( town_tr[1] < bottom ) return false;
+	    return true;
+	}
+
+	if (x_overlap() && y_overlap()) return true;
 	return false;
+	
+	// if ((coords[0] >= bottom_left[0] && coords[0] <= top_right[0]) &&
+	//     (coords[1] >= bottom_left[1] && coords[1] <= top_right[1]))
+
+	// if (bottom_left[0] >= town_bl[0] && bottom_left[1] >= town_bl[1] &&
+	//     top_right[0] <= town_tr[0] && top_right[1] >= town_tr[1])
+	//     return true;
+	// return false;
 
 	
 	// if (a.bbox[0] > coords[0]) return false;
@@ -407,7 +474,7 @@ var find_slice = function(coords)
 	// return true;
     });
 
-    console.log("coords", coords, "matches", matches);
+    console.log("matches", matches);
 
 
     var layers = []
@@ -421,6 +488,30 @@ var find_slice = function(coords)
     
 }
 
+var standend = function(svg)
+{
+    svg.selectAll("defs").remove();
+    svg.selectAll("g").attr("mask",null);
+}
+
+var standout = function(svg, path)
+{
+    standend(svg);
+    
+    svg.append("defs")
+	.append("mask")
+	.attr("id", "map-mask")
+	.style("fill","#rgba(255,255,255,0.5)")
+	.append("path")
+	.attr("d", path.attr("d"))
+	.attr("transform", path.attr("transform"));
+    
+    svg.selectAll("g")
+	.attr("mask","url(#map-mask)");
+
+}
+
+
 var make_zoomy = function()
 {
 
@@ -430,12 +521,18 @@ var make_zoomy = function()
 	return;
     }
 
-    townmap.__g.selectAll(".subobj")
+    townmap.__g.selectAll("path.subobj")
+	.classed("town", true)
 	.on("click", function(d){
 
+
+	    
 	    console.log("town", d.id);
-	    var projection = townmap.projection()(townmap.container().node());
-	    var layers = find_slice(projection.invert(d3.mouse(this)));
+	    // var projection = townmap.projection()(townmap.container().node());
+	    // var layers = find_slice(projection.invert(d3.mouse(this)));
+	    // find_slice(projection.invert(d3.mouse(this)));
+	    // var coords 
+	    var layers = find_slice(d3.select(this).node().getBBox());
 
 	    var timeout;
 	    var zoom_when_loaded = function()
@@ -453,19 +550,24 @@ var make_zoomy = function()
 
 		layers.forEach(function(a){
 		    a.__g.selectAll(".subobj")
+			.classed("block", true)
 			.on("click", function(d){
 			    a.zoom_to(d);
 			});
 		});
-		
-		townmap.zoom_to(d);
-	    }
 
+
+		townmap.zoom_to(d);
+
+	    }
+	    d3.selectAll("path.town").classed("zoomed", false);
+	    d3.select(this).classed("zoomed", true);
 	    zoom_when_loaded();
-	    
+	    // standout(townmap.__svg, d3.select(this));	    
 	    if ( townmap.__centered == null ) // if zoomed out
 	    {
 		console.log("removing");
+		// townmap.zoom_out();
 		// townmap.__layers.forEach(function(a){
 		//     a.__g.remove();
 		// });
@@ -479,6 +581,15 @@ var make_zoomy = function()
 	    }
 	    
 	});
+}
+
+zoomout = function(){
+    // standend(townmap.__svg);
+    townmap.zoom_out.call(townmap);
+    d3.selectAll("path.town").classed("zoomed", false);
+    townmap.__svg.selectAll("path.town")
+	.style("stroke-width", 1 + "px");
+    
 }
 
 var main = function()
