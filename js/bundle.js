@@ -1,674 +1,65 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-/*
- * overlapping_blocks - find blocks in a bbox_index that
- *                      overlap with a given bottom left
- *                      and top right position
- *
- *     args: bbox_index - in the format that mapshaper
- *                        outputs from split-to-grid
- *                   bl - bottom left coord
- *                   tr - top right coord
- *           
- *     rets: returns a filtered copy of bbox_index
- */
-var overlapping_blocks = function(bbox_index, bl, tr)
-{
-
-    var b_left = bl[0];
-    var b_top = tr[1];
-    var b_right = tr[0];
-    var b_bottom = bl[1];
-
-    return bbox_index.filter(function(a){
-
-	var a_left = a.bbox[0];
-	var a_bottom = a.bbox[1];
-	var a_right = a.bbox[2];
-	var a_top = a.bbox[3];
-	
-	if ( a_right < b_left ) return false;
-	if ( a_left > b_right ) return false;
-	if ( a_top < b_bottom ) return false;
-	if ( a_bottom > b_top ) return false;
-
-	return true;
-    });
-    
-}
-
-exports.overlapping_blocks = overlapping_blocks;
-
-},{}],2:[function(require,module,exports){
 const d3 = require("d3");
-const topojson = require("topojson");
-const smap = require("./smap.js").smap;
-
-/* 
- * ct_towns - Make a map of CT using smap.js
- */
-var ct_towns = function(selection)
-{
-    var map = new smap();
-
-    var brect = selection.node().getBoundingClientRect();
-    var width = brect.width;
-    var height = width * 0.6;
-
-    selection.style("height", height);
-
-    var brect = selection.node().getBoundingClientRect();
-
-    map.container(selection)
-	.topojson("shapes/ct_towns.topojson")
-	.height(height).width(width)
-	.projection(function(element){
-    	    return d3.geo.mercator()
-    		.rotate([72.7, 0, 0])
-    		.scale(element.offsetWidth * 22)
-    		.center([0, 41.52])
-    		.translate([element.offsetWidth/ 2, element.offsetHeight / 2]);
-    	})
-    	.features(function(topo){
-    	    return topojson.feature(topo, topo["objects"]["ct_towns_s"]);
-    	})
-    	.draw();
-
-    return map;
-}
-
-exports.ct_towns = ct_towns;
-
-},{"./smap.js":3,"d3":6,"topojson":7}],3:[function(require,module,exports){
-/*
- * svgmap - svg map in d3
- */
-
-const d3 = require("d3");
+const spamjs = require("spamjs");
+const rbush = require("rbush");
 const topojson = require("topojson");
 
-var smap = function() {
-    this.__layers = [];
-    this.__centered = null;
-    this.__drawn = false;
-};
 
-exports.smap = smap;
 
-// set the stroke-width when the map is not zoomed in
-smap.prototype.stroke_width = function(w)
-{
-    if ( typeof(w) == "undefined" ) return this.__stroke_width || 1;
-    this.__stroke_width = w;
-    return this;
-}
+go = function(slice_no){
 
-// set or get the projection
-smap.prototype.projection = function(p)
-{
-    if (typeof(p) == "undefined") return this.__projection;
-    this.__projection = p;
-    return this;
-}
-
-// load the topojson from file or memory
-smap.prototype.topojson = function(fname)
-{
-    if (typeof(fname) == "undefined") return this.__topojson;
+    var hover = null
     
-    var that = this;
-
-    d3.json(fname, function(error, d){
-	if (error) return console.error(error);
-	that.__topojson = d;
-    });
-    
-    return this;
-}
-
-// define a function to get the features from the topojson object
-smap.prototype.features = function(f)
-{
-    if (typeof(f) == "undefined") return this.__features;
-    this.__features = f;
-    return this;
-}
-
-// smap.prototype.subobjects = function(s)
-// {
-//     if (typeof(s) == "undefined") return this.__subobjects;
-//     this.__subobjects = s;
-//     return this;
-// }
-
-// smap.prototype.shapefile = function (fname)
-// {
-//     if (typeof(fname) == "undefined") return this.__fname;
-//     this.__fname = fname;
-//     return this;
-// }
-
-// set the container (d3 selection) in which to draw
-smap.prototype.container = function(selection)
-{
-    if (typeof(selection) == "undefined") return this.__d3selection;
-    this.__d3selection = selection;
-    return this;
-}
-
-// set the height
-smap.prototype.height = function(h)
-{
-    if (typeof(h) == "undefined") return this.__height || 600;
-    this.__height = h;
-    return this;
-}
-
-/* set the width */
-smap.prototype.width = function(w)
-{
-    if(typeof(w) == "undefined") return this.__width || 600;
-    this.__width = w;
-    return this;
-}
-
-/* set the svg to an existing svg for layering */
-smap.prototype.add_to = function(map)
-{
-    this.__svg = map.__svg;
-    this.height(map.height());
-    this.width(map.width());
-    this.projection(map.projection());
-    this.container(map.container());
-
-    map.__layers.push(map);
-
-    return this;
-}
-
-/* add svg if there isn't one (helper function for draw */
-smap.prototype.add_svg = function(svg)
-{
-    
-    // var brect = this.__d3selection.node().getBoundingClientRect();
-    // var width = brect.width;
-
-    // if there is no svg, add one
-    if (typeof(this.__svg) == "undefined")
-    {
-	this.__svg = this.container().append("svg")
-	    .attr("width", this.width() + "px")
-	    .attr("height", this.height() + "px");
-    }
-
-    // if there is a group, remove it
-    // this way we can drop this map and redraw it
-    // without affecting other layers
-    if (typeof(this.__g) != "undefined")
-    {
-	this.__g.remove();
-    }
-
-    
-    // this.__g = this.__svg.append("g")
-    this.__g =    this.__svg.insert("g",":first-child")
-	.classed("smap_layer", true);
-
-    this.__element = this.container().node();
-}
-
-/* add features (helper function for draw */
-smap.prototype.add_features = function()
-{
-    var projection = this.projection()(this.container().node());
-
-    this.__path = d3.geo.path().projection(projection);
-    var path = this.__path;
-
-    var features = this.features()(this.__topojson);
-
-
-    this.__g.append("path")
-	.datum(features)
-	.attr("d", path)
-	// .each(function(d){
-	//     console.log("path", d);
-	// });
-
-    var that = this;
-    this.__g.selectAll(".subobj")
-	.data(features.features)
-	.enter()
-	.append("path")
-	.classed("subobj", true)
-	.attr("data-obj-name", function(d){ return d.id; })
-	// .style("fill","white")
-	.style("stroke-width", this.stroke_width() + "px")
-	// .style("stroke","gray")
-	.attr("d", path)
-	// .on("click",function(d){
-
-	//     // that.zoom_to.call(that, d);
-	//     // console.log("centroid", path.centroid(d));
-	//     // console.log("coordinates: ", projection.invert(d3.mouse(this)));
-	//     // console.log(d);
-	// });
-
-
-    
-    this.__drawn = true;
-}
-
-smap.prototype.zoom_to = function(d)
-{
-    var x, y, k;
-    var dur = 500;
-    var path = this.__path;
-    var width = this.width();
-    var height = this.height();
-    
-    if (d && this.__centered !== d) {
-	var centroid = path.centroid(d);
-	x = centroid[0];
-	y = centroid[1];
-	k = 4;
-	this.__centered = d;
-    } else {
-	// x = width / 2;
-	// y = height / 2;
-	// k = 1;
-	this.__centered = null;
-	this.zoom_out();
-    }
-
-
-    var bounds = path.bounds(d),
-	dx = bounds[1][0] - bounds[0][0],
-	dy = bounds[1][1] - bounds[0][1],
-	x = (bounds[0][0] + bounds[1][0]) / 2,
-	y = (bounds[0][1] + bounds[1][1]) / 2,
-	scale = .9 / Math.max(dx / width, dy / height),
-	translate = [width / 2 - scale * x, height / 2 - scale * y];
-
-    var trans = "translate(" + translate + ")scale(" + scale + ")";
-    var stroke = this.stroke_width() / scale;
-
-    // this.__g.selectAll("path")
-    this.__svg.selectAll("path")
-        .style("stroke-width", stroke + "px")
-        .classed("active", this.__centered && function(d) {
-	    return d === this.__centered; });
-
-    // this.__g.transition()
-    this.__svg.selectAll("g")
-	.transition()
-        .duration(dur)
-        .attr("transform", trans)
-
-    
-        // .style("stroke-width", stroke);
-
-    for ( var i in this.__layers )
-    {
-	var layer = this.__layers[i];
-
-	// console.log("zooming layer " + i, trans, stroke, layer);
-	// layer.__g.transition()
-        // .duration(dur)
-        // .attr("transform", trans)
-        // .style("stroke-width", stroke);
-    }
-    
-    this.height(height);
-    this.width(width);
-    // this.standout();
-}
-
-// smap.prototype.standout = function()
-// {
-//     this.__svg.selectAll("defs").remove();
-//     this.__svg.append("defs")
-// 	.append("mask")
-// 	.attr("id", "map-mask")
-// 	.style("fill","#00ff00")
-// 	.html(this.__g.html())
-
-//     this.__svg.selectAll("g")
-// 	.attr("mask","url(#map-mask)");
-// }
-
-// smap.prototype.standend = function()
-// {
-//     this.__svg.selectAll("defs").remove();
-//     this.__svg.selectAll("g")
-// 	.attr("mask", null);
-// }
-
-smap.prototype.zoom_out = function()
-{
-
-    this.__svg.selectAll("g").transition()
-        .duration(500)
-        .attr("transform", "");
-
-    this.__g.selectAll("path")
-	// .transition()
-	// .duration(100)
-	.style("stroke-width", this.stroke_width() + "px");
-    
-    // for ( var i in this.__layers )
-    // {
-    // 	this.__layers[i].zoom_out();
-    // }
-    
-}
-
-/* pass a function to color all features */
-smap.prototype.color = function(f)
-{
-
-    var that = this;
-
-    try{
-	this.__g.selectAll(".subobj")
-	    .style("fill", f);
-	return this;
-    }
-    catch (e) {
-	setTimeout(function(){
-	    that.color.call(that, f);
-	}, 50);
-    }
-    return this;
-}
-
-/* remove the map */
-smap.prototype.remove = function()
-{
-
-    if (typeof(this.__g) != "undefined")
-	this.__g.remove();
-    this.__drawn = false;
-    
-}
-
-/* draw the map */
-smap.prototype.draw = function(tries)
-{
-
-    if (typeof(tries) == "undefined") tries = 0;
-    if ( tries > 20 )
-    {
-	console.error("topojson failed to load 20 times. Giving up.");
-	this.__topojson = null;
-	return;
-    }
-    
-    // make sure topojson is loaded
-    if (typeof(this.__topojson) == "undefined")
-    {
-	console.error("topojson file not loaded yet, retrying in 200ms");
-	var that = this;
-
-	setTimeout(function(){
-	    that.draw.call(that, tries + 1);
-	}, 200);
-	return this;
-    }
-
-    this.__drawn = false;
-    
-    this.remove();
-    
-    this.add_svg();
-
-    this.add_features();
-
-
-    return this;
-}
-
-
-},{"d3":6,"topojson":7}],4:[function(require,module,exports){
-const d3 = require("d3");
-const topojson = require("topojson");
-const smap = require("./smap.js").smap;
-const ct_towns = require("./cttowns.js").ct_towns;
-const overlapping_blocks = require("./blockfind.js").overlapping_blocks;
-const town_names = require("./townnames.js");
-
-var index; 			// bounding box index
-var loaded_objs = {}; 		// cache of layers
-var townmap; 			// base map
-
-/* 
- * load_bbox_index - load the  bounding box index, store it in index variable.
- *      notes: index var is used to find a map layer based on coordinates
- */
-var load_bbox_index = function(){
-    d3.json("shapes/bbox-index.json", function(error, d){
-	index = d;
-    });
-}
-
-/*
- * add_block - load and add a block to the townmap
- */
-var add_block = function( block_no )
-{
-    // return from cache if possible
-    if (loaded_objs.hasOwnProperty(block_no))
-    {
-	// loaded_objs[block_no].draw();
-    }
-    
-    // otherwise, load it
-    else
-    {
-	loaded_objs[block_no] = new smap()
-	    .add_to(townmap)
-	    .topojson("shapes/" + block_no + ".topojson")
-	    .stroke_width(2)
-	    .features(function(topo){
-		return topo["objects"];
-	    })
-	    .draw();
-    }
-
-    console.log("returning ", loaded_objs[block_no]);
-		
-    return loaded_objs[block_no]; 
-}
-
-/*
- * find_blocks - find and add blocks that overlap withbbox
- */
-var find_blocks = function(bbox)
-{
-    if (typeof(index) == "undefined")
-    	throw ("index not yet loaded");
-
-    var projection = townmap.projection()(townmap.container().node());
-    var town_bl = projection.invert([bbox.x,(bbox.y + bbox.height)]);
-    var town_tr = projection.invert([(bbox.x + bbox.width), bbox.y]);
-    var matches = overlapping_blocks(index, town_bl, town_tr);
-    
-    // console.log("matches", matches);
-
-    var layers = []
-    for (var i in matches)
-    {
-	layers.push(add_block(matches[i]["name"]));
-    }
-
-    return layers;
-}
-
-var zoom_to_town = function( townpath, d )
-{
-    console.log("zoom_to_town", d.id);
-
-    d3.selectAll(".town-name")
-	.classed("clickable", true)
-	.text(town_names.display_name(d.id))
-	.on("click", function(){
-	    zoom_to_town(townpath, d);
-	});
-    
-    var layers = find_blocks(d3.select(townpath).node().getBBox());
-    var timeout;
-
-    var zoom_when_loaded = function()
-    {
-	// wait for them all to be loaded
-	for ( var i in layers )
-	{
-	    // console.log("all_loaded? ", layers[i].__topojson);
-	    if (typeof(layers[i].__topojson) == "undefined")
-	    {
-		clearTimeout(timeout);
-		timeout = setTimeout(zoom_when_loaded, 50);
-		return;
-	    }
-
-	}
-
-	// wait for them all to be drawn
-	for ( var i in layers )
-	{
-	    if ( layers[i].__drawn != true )
-	    {
-		layers[i].draw();
-		clearTimeout(timeout);
-		timeout = setTimeout(zoom_when_loaded, 50);
-		return;
-	    }
-	}
-
-	// make the block-level maps zoomable as well. oh yeah we did.
-	layers.forEach(function(a){
-	    a.__g.selectAll(".subobj")
-		.classed("block", true)
-		.on("click", function(d){
-		    console.log(d);
-		    d3.select(".block-name")
-			.text("Census Block " + d["properties"]["GEOID10"]);
-		    a.zoom_to(d);
-		});
-	});
-
-	// when we make it here, we're ready to actually do the zoom.
-	townmap.zoom_to(d);
-
-	// zoomed applies to just the town we're zoomed into
-	d3.selectAll("path.town").classed("zoomed", false);
-
-	// closeup mode applies to the whole map
-	d3.selectAll("g").classed("closeup", true);
-	d3.select(townpath).classed("zoomed", true);
-
-	done_loading();
-    }
-
-    loading();
-    zoom_when_loaded();
-
+    d3.json("shapes/" + slice_no + ".topojson", function(error, d) {
+	topojson.presimplify(d);
+
+	d3.select("#container").html("");
+	var map = new spamjs.ZoomableCanvasMap({
+	    element: "#container",
+	    data: [{
+		features: d.objects,
+		static: {
+		    paintfeature: function(parameters, d) {
+			console.log(d);
+			parameters.context.stroke()
+		    }
+		},
+		dynamic: {
+		    postpaint: function(parameters) {
+			if (!hover)
+			    return
+
+			parameters.context.beginPath()
+			parameters.context.lineWidth = 2 / parameters.scale
+			parameters.context.fillStyle = "rgb(241, 205, 151)"
+			parameters.path(hover)
+			parameters.context.stroke()
+			parameters.context.fill()
+		    }
+		},
+		events: {
+		    hover: function(parameters, d) {
+			hover = d;
+			console.log(d);
+			parameters.map.paint()
+		    },
+		    click: function(parameters, d) {
+			console.log(d3.event);
+			console.log(parameters, d);
+			parameters.map.zoom(d)
+		    }
+		}
+	    }]
+	})
+	map.init();
+	console.log(map);
+    })
 
 }
 
+go("r2c6");
 
-/*
- * make_zoomy - make the townmap zoomable on click
- */
-var make_zoomy = function()
-{
-
-    // make sure the map is drawn, otherwise, try again later
-    if (townmap.__drawn == false)
-    {
-	setTimeout(make_zoomy, 100);
-	return;
-    }
-
-    townmap.__g.selectAll("path.subobj")
-	.classed("town", true) 
-	.on("click", function(d){
-	    var townpath = this;
-	    zoom_to_town(townpath, d);
-	    
-	});
-}
-
-/* 
- * zoomout - zoom back to the town-level statewide map 
- */
-zoomout = function(){
-
-    d3.select(".town-name")
-	.html("&nbsp;");
-    d3.select(".block-name")
-	.html("&nbsp;");
-    
-    // reset CSS and zoom out
-    d3.selectAll("g").classed("closeup", false);
-    d3.selectAll("path.town").classed("zoomed", false);
-
-    townmap.zoom_out.call(townmap);
-    // townmap.__svg.selectAll("path.town")
-    // .style("stroke-width", 1 + "px");
-
-    for ( var n in loaded_objs )
-    {
-	loaded_objs[n].remove();
-    }
-}
-
-var loading = function()
-{
-    d3.select(".loading").style("display","block");
-}
-
-var done_loading = function()
-{
-    d3.select(".loading").style("display",null);
-}
-
-/* 
- * main
- */
-var main = function()
-{
-    load_bbox_index();
-    townmap = ct_towns(d3.select("#container"));
-    d3.select(".state-name")
-	.text("Connecticut")
-	.classed("clickable", true)
-	.on("click", zoomout);
-    make_zoomy();
-};
-
-main();
-
-},{"./blockfind.js":1,"./cttowns.js":2,"./smap.js":3,"./townnames.js":5,"d3":6,"topojson":7}],5:[function(require,module,exports){
-/*
- * functions for handling, cleaning town names
- */
-
-var display_name = function(town)
-{
-    return town.replace("_"," ")
-}
-
-
-exports.display_name = display_name;
-
-var match = function(a, b)
-{
-    return display_name(a) == display_name(b);
-}
-
-exports.match = match;
-
-},{}],6:[function(require,module,exports){
+},{"d3":2,"rbush":4,"spamjs":6,"topojson":7}],2:[function(require,module,exports){
 !function() {
   var d3 = {
     version: "3.5.17"
@@ -10223,7 +9614,1982 @@ exports.match = match;
   });
   if (typeof define === "function" && define.amd) this.d3 = d3, define(d3); else if (typeof module === "object" && module.exports) module.exports = d3; else this.d3 = d3;
 }();
-},{}],7:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
+'use strict';
+
+module.exports = partialSort;
+
+// Floyd-Rivest selection algorithm:
+// Rearrange items so that all items in the [left, k] range are smaller than all items in (k, right];
+// The k-th element will have the (k - left + 1)th smallest value in [left, right]
+
+function partialSort(arr, k, left, right, compare) {
+    left = left || 0;
+    right = right || (arr.length - 1);
+    compare = compare || defaultCompare;
+
+    while (right > left) {
+        if (right - left > 600) {
+            var n = right - left + 1;
+            var m = k - left + 1;
+            var z = Math.log(n);
+            var s = 0.5 * Math.exp(2 * z / 3);
+            var sd = 0.5 * Math.sqrt(z * s * (n - s) / n) * (m - n / 2 < 0 ? -1 : 1);
+            var newLeft = Math.max(left, Math.floor(k - m * s / n + sd));
+            var newRight = Math.min(right, Math.floor(k + (n - m) * s / n + sd));
+            partialSort(arr, k, newLeft, newRight, compare);
+        }
+
+        var t = arr[k];
+        var i = left;
+        var j = right;
+
+        swap(arr, left, k);
+        if (compare(arr[right], t) > 0) swap(arr, left, right);
+
+        while (i < j) {
+            swap(arr, i, j);
+            i++;
+            j--;
+            while (compare(arr[i], t) < 0) i++;
+            while (compare(arr[j], t) > 0) j--;
+        }
+
+        if (compare(arr[left], t) === 0) swap(arr, left, j);
+        else {
+            j++;
+            swap(arr, j, right);
+        }
+
+        if (j <= k) left = j + 1;
+        if (k <= j) right = j - 1;
+    }
+}
+
+function swap(arr, i, j) {
+    var tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+}
+
+function defaultCompare(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+},{}],4:[function(require,module,exports){
+'use strict';
+
+module.exports = rbush;
+
+var quickselect = require('quickselect');
+
+function rbush(maxEntries, format) {
+    if (!(this instanceof rbush)) return new rbush(maxEntries, format);
+
+    // max entries in a node is 9 by default; min node fill is 40% for best performance
+    this._maxEntries = Math.max(4, maxEntries || 9);
+    this._minEntries = Math.max(2, Math.ceil(this._maxEntries * 0.4));
+
+    if (format) {
+        this._initFormat(format);
+    }
+
+    this.clear();
+}
+
+rbush.prototype = {
+
+    all: function () {
+        return this._all(this.data, []);
+    },
+
+    search: function (bbox) {
+
+        var node = this.data,
+            result = [],
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node)) return result;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf) result.push(child);
+                    else if (contains(bbox, childBBox)) this._all(child, result);
+                    else nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return result;
+    },
+
+    collides: function (bbox) {
+
+        var node = this.data,
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node)) return false;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf || contains(bbox, childBBox)) return true;
+                    nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return false;
+    },
+
+    load: function (data) {
+        if (!(data && data.length)) return this;
+
+        if (data.length < this._minEntries) {
+            for (var i = 0, len = data.length; i < len; i++) {
+                this.insert(data[i]);
+            }
+            return this;
+        }
+
+        // recursively build the tree with the given data from stratch using OMT algorithm
+        var node = this._build(data.slice(), 0, data.length - 1, 0);
+
+        if (!this.data.children.length) {
+            // save as is if tree is empty
+            this.data = node;
+
+        } else if (this.data.height === node.height) {
+            // split root if trees have the same height
+            this._splitRoot(this.data, node);
+
+        } else {
+            if (this.data.height < node.height) {
+                // swap trees if inserted one is bigger
+                var tmpNode = this.data;
+                this.data = node;
+                node = tmpNode;
+            }
+
+            // insert the small tree into the large tree at appropriate level
+            this._insert(node, this.data.height - node.height - 1, true);
+        }
+
+        return this;
+    },
+
+    insert: function (item) {
+        if (item) this._insert(item, this.data.height - 1);
+        return this;
+    },
+
+    clear: function () {
+        this.data = createNode([]);
+        return this;
+    },
+
+    remove: function (item, equalsFn) {
+        if (!item) return this;
+
+        var node = this.data,
+            bbox = this.toBBox(item),
+            path = [],
+            indexes = [],
+            i, parent, index, goingUp;
+
+        // depth-first iterative tree traversal
+        while (node || path.length) {
+
+            if (!node) { // go up
+                node = path.pop();
+                parent = path[path.length - 1];
+                i = indexes.pop();
+                goingUp = true;
+            }
+
+            if (node.leaf) { // check current node
+                index = findItem(item, node.children, equalsFn);
+
+                if (index !== -1) {
+                    // item found, remove the item and condense tree upwards
+                    node.children.splice(index, 1);
+                    path.push(node);
+                    this._condense(path);
+                    return this;
+                }
+            }
+
+            if (!goingUp && !node.leaf && contains(node, bbox)) { // go down
+                path.push(node);
+                indexes.push(i);
+                i = 0;
+                parent = node;
+                node = node.children[0];
+
+            } else if (parent) { // go right
+                i++;
+                node = parent.children[i];
+                goingUp = false;
+
+            } else node = null; // nothing found
+        }
+
+        return this;
+    },
+
+    toBBox: function (item) { return item; },
+
+    compareMinX: compareNodeMinX,
+    compareMinY: compareNodeMinY,
+
+    toJSON: function () { return this.data; },
+
+    fromJSON: function (data) {
+        this.data = data;
+        return this;
+    },
+
+    _all: function (node, result) {
+        var nodesToSearch = [];
+        while (node) {
+            if (node.leaf) result.push.apply(result, node.children);
+            else nodesToSearch.push.apply(nodesToSearch, node.children);
+
+            node = nodesToSearch.pop();
+        }
+        return result;
+    },
+
+    _build: function (items, left, right, height) {
+
+        var N = right - left + 1,
+            M = this._maxEntries,
+            node;
+
+        if (N <= M) {
+            // reached leaf level; return leaf
+            node = createNode(items.slice(left, right + 1));
+            calcBBox(node, this.toBBox);
+            return node;
+        }
+
+        if (!height) {
+            // target height of the bulk-loaded tree
+            height = Math.ceil(Math.log(N) / Math.log(M));
+
+            // target number of root entries to maximize storage utilization
+            M = Math.ceil(N / Math.pow(M, height - 1));
+        }
+
+        node = createNode([]);
+        node.leaf = false;
+        node.height = height;
+
+        // split the items into M mostly square tiles
+
+        var N2 = Math.ceil(N / M),
+            N1 = N2 * Math.ceil(Math.sqrt(M)),
+            i, j, right2, right3;
+
+        multiSelect(items, left, right, N1, this.compareMinX);
+
+        for (i = left; i <= right; i += N1) {
+
+            right2 = Math.min(i + N1 - 1, right);
+
+            multiSelect(items, i, right2, N2, this.compareMinY);
+
+            for (j = i; j <= right2; j += N2) {
+
+                right3 = Math.min(j + N2 - 1, right2);
+
+                // pack each entry recursively
+                node.children.push(this._build(items, j, right3, height - 1));
+            }
+        }
+
+        calcBBox(node, this.toBBox);
+
+        return node;
+    },
+
+    _chooseSubtree: function (bbox, node, level, path) {
+
+        var i, len, child, targetNode, area, enlargement, minArea, minEnlargement;
+
+        while (true) {
+            path.push(node);
+
+            if (node.leaf || path.length - 1 === level) break;
+
+            minArea = minEnlargement = Infinity;
+
+            for (i = 0, len = node.children.length; i < len; i++) {
+                child = node.children[i];
+                area = bboxArea(child);
+                enlargement = enlargedArea(bbox, child) - area;
+
+                // choose entry with the least area enlargement
+                if (enlargement < minEnlargement) {
+                    minEnlargement = enlargement;
+                    minArea = area < minArea ? area : minArea;
+                    targetNode = child;
+
+                } else if (enlargement === minEnlargement) {
+                    // otherwise choose one with the smallest area
+                    if (area < minArea) {
+                        minArea = area;
+                        targetNode = child;
+                    }
+                }
+            }
+
+            node = targetNode || node.children[0];
+        }
+
+        return node;
+    },
+
+    _insert: function (item, level, isNode) {
+
+        var toBBox = this.toBBox,
+            bbox = isNode ? item : toBBox(item),
+            insertPath = [];
+
+        // find the best node for accommodating the item, saving all nodes along the path too
+        var node = this._chooseSubtree(bbox, this.data, level, insertPath);
+
+        // put the item into the node
+        node.children.push(item);
+        extend(node, bbox);
+
+        // split on node overflow; propagate upwards if necessary
+        while (level >= 0) {
+            if (insertPath[level].children.length > this._maxEntries) {
+                this._split(insertPath, level);
+                level--;
+            } else break;
+        }
+
+        // adjust bboxes along the insertion path
+        this._adjustParentBBoxes(bbox, insertPath, level);
+    },
+
+    // split overflowed node into two
+    _split: function (insertPath, level) {
+
+        var node = insertPath[level],
+            M = node.children.length,
+            m = this._minEntries;
+
+        this._chooseSplitAxis(node, m, M);
+
+        var splitIndex = this._chooseSplitIndex(node, m, M);
+
+        var newNode = createNode(node.children.splice(splitIndex, node.children.length - splitIndex));
+        newNode.height = node.height;
+        newNode.leaf = node.leaf;
+
+        calcBBox(node, this.toBBox);
+        calcBBox(newNode, this.toBBox);
+
+        if (level) insertPath[level - 1].children.push(newNode);
+        else this._splitRoot(node, newNode);
+    },
+
+    _splitRoot: function (node, newNode) {
+        // split root node
+        this.data = createNode([node, newNode]);
+        this.data.height = node.height + 1;
+        this.data.leaf = false;
+        calcBBox(this.data, this.toBBox);
+    },
+
+    _chooseSplitIndex: function (node, m, M) {
+
+        var i, bbox1, bbox2, overlap, area, minOverlap, minArea, index;
+
+        minOverlap = minArea = Infinity;
+
+        for (i = m; i <= M - m; i++) {
+            bbox1 = distBBox(node, 0, i, this.toBBox);
+            bbox2 = distBBox(node, i, M, this.toBBox);
+
+            overlap = intersectionArea(bbox1, bbox2);
+            area = bboxArea(bbox1) + bboxArea(bbox2);
+
+            // choose distribution with minimum overlap
+            if (overlap < minOverlap) {
+                minOverlap = overlap;
+                index = i;
+
+                minArea = area < minArea ? area : minArea;
+
+            } else if (overlap === minOverlap) {
+                // otherwise choose distribution with minimum area
+                if (area < minArea) {
+                    minArea = area;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
+    },
+
+    // sorts node children by the best axis for split
+    _chooseSplitAxis: function (node, m, M) {
+
+        var compareMinX = node.leaf ? this.compareMinX : compareNodeMinX,
+            compareMinY = node.leaf ? this.compareMinY : compareNodeMinY,
+            xMargin = this._allDistMargin(node, m, M, compareMinX),
+            yMargin = this._allDistMargin(node, m, M, compareMinY);
+
+        // if total distributions margin value is minimal for x, sort by minX,
+        // otherwise it's already sorted by minY
+        if (xMargin < yMargin) node.children.sort(compareMinX);
+    },
+
+    // total margin of all possible split distributions where each node is at least m full
+    _allDistMargin: function (node, m, M, compare) {
+
+        node.children.sort(compare);
+
+        var toBBox = this.toBBox,
+            leftBBox = distBBox(node, 0, m, toBBox),
+            rightBBox = distBBox(node, M - m, M, toBBox),
+            margin = bboxMargin(leftBBox) + bboxMargin(rightBBox),
+            i, child;
+
+        for (i = m; i < M - m; i++) {
+            child = node.children[i];
+            extend(leftBBox, node.leaf ? toBBox(child) : child);
+            margin += bboxMargin(leftBBox);
+        }
+
+        for (i = M - m - 1; i >= m; i--) {
+            child = node.children[i];
+            extend(rightBBox, node.leaf ? toBBox(child) : child);
+            margin += bboxMargin(rightBBox);
+        }
+
+        return margin;
+    },
+
+    _adjustParentBBoxes: function (bbox, path, level) {
+        // adjust bboxes along the given tree path
+        for (var i = level; i >= 0; i--) {
+            extend(path[i], bbox);
+        }
+    },
+
+    _condense: function (path) {
+        // go through the path, removing empty nodes and updating bboxes
+        for (var i = path.length - 1, siblings; i >= 0; i--) {
+            if (path[i].children.length === 0) {
+                if (i > 0) {
+                    siblings = path[i - 1].children;
+                    siblings.splice(siblings.indexOf(path[i]), 1);
+
+                } else this.clear();
+
+            } else calcBBox(path[i], this.toBBox);
+        }
+    },
+
+    _initFormat: function (format) {
+        // data format (minX, minY, maxX, maxY accessors)
+
+        // uses eval-type function compilation instead of just accepting a toBBox function
+        // because the algorithms are very sensitive to sorting functions performance,
+        // so they should be dead simple and without inner calls
+
+        var compareArr = ['return a', ' - b', ';'];
+
+        this.compareMinX = new Function('a', 'b', compareArr.join(format[0]));
+        this.compareMinY = new Function('a', 'b', compareArr.join(format[1]));
+
+        this.toBBox = new Function('a',
+            'return {minX: a' + format[0] +
+            ', minY: a' + format[1] +
+            ', maxX: a' + format[2] +
+            ', maxY: a' + format[3] + '};');
+    }
+};
+
+function findItem(item, items, equalsFn) {
+    if (!equalsFn) return items.indexOf(item);
+
+    for (var i = 0; i < items.length; i++) {
+        if (equalsFn(item, items[i])) return i;
+    }
+    return -1;
+}
+
+// calculate node's bbox from bboxes of its children
+function calcBBox(node, toBBox) {
+    distBBox(node, 0, node.children.length, toBBox, node);
+}
+
+// min bounding rectangle of node children from k to p-1
+function distBBox(node, k, p, toBBox, destNode) {
+    if (!destNode) destNode = createNode(null);
+    destNode.minX = Infinity;
+    destNode.minY = Infinity;
+    destNode.maxX = -Infinity;
+    destNode.maxY = -Infinity;
+
+    for (var i = k, child; i < p; i++) {
+        child = node.children[i];
+        extend(destNode, node.leaf ? toBBox(child) : child);
+    }
+
+    return destNode;
+}
+
+function extend(a, b) {
+    a.minX = Math.min(a.minX, b.minX);
+    a.minY = Math.min(a.minY, b.minY);
+    a.maxX = Math.max(a.maxX, b.maxX);
+    a.maxY = Math.max(a.maxY, b.maxY);
+    return a;
+}
+
+function compareNodeMinX(a, b) { return a.minX - b.minX; }
+function compareNodeMinY(a, b) { return a.minY - b.minY; }
+
+function bboxArea(a)   { return (a.maxX - a.minX) * (a.maxY - a.minY); }
+function bboxMargin(a) { return (a.maxX - a.minX) + (a.maxY - a.minY); }
+
+function enlargedArea(a, b) {
+    return (Math.max(b.maxX, a.maxX) - Math.min(b.minX, a.minX)) *
+           (Math.max(b.maxY, a.maxY) - Math.min(b.minY, a.minY));
+}
+
+function intersectionArea(a, b) {
+    var minX = Math.max(a.minX, b.minX),
+        minY = Math.max(a.minY, b.minY),
+        maxX = Math.min(a.maxX, b.maxX),
+        maxY = Math.min(a.maxY, b.maxY);
+
+    return Math.max(0, maxX - minX) *
+           Math.max(0, maxY - minY);
+}
+
+function contains(a, b) {
+    return a.minX <= b.minX &&
+           a.minY <= b.minY &&
+           b.maxX <= a.maxX &&
+           b.maxY <= a.maxY;
+}
+
+function intersects(a, b) {
+    return b.minX <= a.maxX &&
+           b.minY <= a.maxY &&
+           b.maxX >= a.minX &&
+           b.maxY >= a.minY;
+}
+
+function createNode(children) {
+    return {
+        children: children,
+        height: 1,
+        leaf: true,
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity
+    };
+}
+
+// sort an array so that items come in groups of n unsorted items, with groups sorted between each other;
+// combines selection algorithm with binary divide & conquer approach
+
+function multiSelect(arr, left, right, n, compare) {
+    var stack = [left, right],
+        mid;
+
+    while (stack.length) {
+        right = stack.pop();
+        left = stack.pop();
+
+        if (right - left <= n) continue;
+
+        mid = left + Math.ceil((right - left) / n / 2) * n;
+        quickselect(arr, mid, left, right, compare);
+
+        stack.push(left, mid, mid, right);
+    }
+}
+
+},{"quickselect":3}],5:[function(require,module,exports){
+/*
+ (c) 2015, Vladimir Agafonkin
+ RBush, a JavaScript library for high-performance 2D spatial indexing of points and rectangles.
+ https://github.com/mourner/rbush
+*/
+
+(function () {
+'use strict';
+
+function rbush(maxEntries, format) {
+    if (!(this instanceof rbush)) return new rbush(maxEntries, format);
+
+    // max entries in a node is 9 by default; min node fill is 40% for best performance
+    this._maxEntries = Math.max(4, maxEntries || 9);
+    this._minEntries = Math.max(2, Math.ceil(this._maxEntries * 0.4));
+
+    if (format) {
+        this._initFormat(format);
+    }
+
+    this.clear();
+}
+
+rbush.prototype = {
+
+    all: function () {
+        return this._all(this.data, []);
+    },
+
+    search: function (bbox) {
+
+        var node = this.data,
+            result = [],
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node.bbox)) return result;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child.bbox;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf) result.push(child);
+                    else if (contains(bbox, childBBox)) this._all(child, result);
+                    else nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return result;
+    },
+
+    collides: function (bbox) {
+
+        var node = this.data,
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node.bbox)) return false;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child.bbox;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf || contains(bbox, childBBox)) return true;
+                    nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return false;
+    },
+
+    load: function (data) {
+        if (!(data && data.length)) return this;
+
+        if (data.length < this._minEntries) {
+            for (var i = 0, len = data.length; i < len; i++) {
+                this.insert(data[i]);
+            }
+            return this;
+        }
+
+        // recursively build the tree with the given data from stratch using OMT algorithm
+        var node = this._build(data.slice(), 0, data.length - 1, 0);
+
+        if (!this.data.children.length) {
+            // save as is if tree is empty
+            this.data = node;
+
+        } else if (this.data.height === node.height) {
+            // split root if trees have the same height
+            this._splitRoot(this.data, node);
+
+        } else {
+            if (this.data.height < node.height) {
+                // swap trees if inserted one is bigger
+                var tmpNode = this.data;
+                this.data = node;
+                node = tmpNode;
+            }
+
+            // insert the small tree into the large tree at appropriate level
+            this._insert(node, this.data.height - node.height - 1, true);
+        }
+
+        return this;
+    },
+
+    insert: function (item) {
+        if (item) this._insert(item, this.data.height - 1);
+        return this;
+    },
+
+    clear: function () {
+        this.data = {
+            children: [],
+            height: 1,
+            bbox: empty(),
+            leaf: true
+        };
+        return this;
+    },
+
+    remove: function (item) {
+        if (!item) return this;
+
+        var node = this.data,
+            bbox = this.toBBox(item),
+            path = [],
+            indexes = [],
+            i, parent, index, goingUp;
+
+        // depth-first iterative tree traversal
+        while (node || path.length) {
+
+            if (!node) { // go up
+                node = path.pop();
+                parent = path[path.length - 1];
+                i = indexes.pop();
+                goingUp = true;
+            }
+
+            if (node.leaf) { // check current node
+                index = node.children.indexOf(item);
+
+                if (index !== -1) {
+                    // item found, remove the item and condense tree upwards
+                    node.children.splice(index, 1);
+                    path.push(node);
+                    this._condense(path);
+                    return this;
+                }
+            }
+
+            if (!goingUp && !node.leaf && contains(node.bbox, bbox)) { // go down
+                path.push(node);
+                indexes.push(i);
+                i = 0;
+                parent = node;
+                node = node.children[0];
+
+            } else if (parent) { // go right
+                i++;
+                node = parent.children[i];
+                goingUp = false;
+
+            } else node = null; // nothing found
+        }
+
+        return this;
+    },
+
+    toBBox: function (item) { return item; },
+
+    compareMinX: function (a, b) { return a[0] - b[0]; },
+    compareMinY: function (a, b) { return a[1] - b[1]; },
+
+    toJSON: function () { return this.data; },
+
+    fromJSON: function (data) {
+        this.data = data;
+        return this;
+    },
+
+    _all: function (node, result) {
+        var nodesToSearch = [];
+        while (node) {
+            if (node.leaf) result.push.apply(result, node.children);
+            else nodesToSearch.push.apply(nodesToSearch, node.children);
+
+            node = nodesToSearch.pop();
+        }
+        return result;
+    },
+
+    _build: function (items, left, right, height) {
+
+        var N = right - left + 1,
+            M = this._maxEntries,
+            node;
+
+        if (N <= M) {
+            // reached leaf level; return leaf
+            node = {
+                children: items.slice(left, right + 1),
+                height: 1,
+                bbox: null,
+                leaf: true
+            };
+            calcBBox(node, this.toBBox);
+            return node;
+        }
+
+        if (!height) {
+            // target height of the bulk-loaded tree
+            height = Math.ceil(Math.log(N) / Math.log(M));
+
+            // target number of root entries to maximize storage utilization
+            M = Math.ceil(N / Math.pow(M, height - 1));
+        }
+
+        node = {
+            children: [],
+            height: height,
+            bbox: null,
+            leaf: false
+        };
+
+        // split the items into M mostly square tiles
+
+        var N2 = Math.ceil(N / M),
+            N1 = N2 * Math.ceil(Math.sqrt(M)),
+            i, j, right2, right3;
+
+        multiSelect(items, left, right, N1, this.compareMinX);
+
+        for (i = left; i <= right; i += N1) {
+
+            right2 = Math.min(i + N1 - 1, right);
+
+            multiSelect(items, i, right2, N2, this.compareMinY);
+
+            for (j = i; j <= right2; j += N2) {
+
+                right3 = Math.min(j + N2 - 1, right2);
+
+                // pack each entry recursively
+                node.children.push(this._build(items, j, right3, height - 1));
+            }
+        }
+
+        calcBBox(node, this.toBBox);
+
+        return node;
+    },
+
+    _chooseSubtree: function (bbox, node, level, path) {
+
+        var i, len, child, targetNode, area, enlargement, minArea, minEnlargement;
+
+        while (true) {
+            path.push(node);
+
+            if (node.leaf || path.length - 1 === level) break;
+
+            minArea = minEnlargement = Infinity;
+
+            for (i = 0, len = node.children.length; i < len; i++) {
+                child = node.children[i];
+                area = bboxArea(child.bbox);
+                enlargement = enlargedArea(bbox, child.bbox) - area;
+
+                // choose entry with the least area enlargement
+                if (enlargement < minEnlargement) {
+                    minEnlargement = enlargement;
+                    minArea = area < minArea ? area : minArea;
+                    targetNode = child;
+
+                } else if (enlargement === minEnlargement) {
+                    // otherwise choose one with the smallest area
+                    if (area < minArea) {
+                        minArea = area;
+                        targetNode = child;
+                    }
+                }
+            }
+
+            node = targetNode || node.children[0];
+        }
+
+        return node;
+    },
+
+    _insert: function (item, level, isNode) {
+
+        var toBBox = this.toBBox,
+            bbox = isNode ? item.bbox : toBBox(item),
+            insertPath = [];
+
+        // find the best node for accommodating the item, saving all nodes along the path too
+        var node = this._chooseSubtree(bbox, this.data, level, insertPath);
+
+        // put the item into the node
+        node.children.push(item);
+        extend(node.bbox, bbox);
+
+        // split on node overflow; propagate upwards if necessary
+        while (level >= 0) {
+            if (insertPath[level].children.length > this._maxEntries) {
+                this._split(insertPath, level);
+                level--;
+            } else break;
+        }
+
+        // adjust bboxes along the insertion path
+        this._adjustParentBBoxes(bbox, insertPath, level);
+    },
+
+    // split overflowed node into two
+    _split: function (insertPath, level) {
+
+        var node = insertPath[level],
+            M = node.children.length,
+            m = this._minEntries;
+
+        this._chooseSplitAxis(node, m, M);
+
+        var splitIndex = this._chooseSplitIndex(node, m, M);
+
+        var newNode = {
+            children: node.children.splice(splitIndex, node.children.length - splitIndex),
+            height: node.height,
+            bbox: null,
+            leaf: false
+        };
+
+        if (node.leaf) newNode.leaf = true;
+
+        calcBBox(node, this.toBBox);
+        calcBBox(newNode, this.toBBox);
+
+        if (level) insertPath[level - 1].children.push(newNode);
+        else this._splitRoot(node, newNode);
+    },
+
+    _splitRoot: function (node, newNode) {
+        // split root node
+        this.data = {
+            children: [node, newNode],
+            height: node.height + 1,
+            bbox: null,
+            leaf: false
+        };
+        calcBBox(this.data, this.toBBox);
+    },
+
+    _chooseSplitIndex: function (node, m, M) {
+
+        var i, bbox1, bbox2, overlap, area, minOverlap, minArea, index;
+
+        minOverlap = minArea = Infinity;
+
+        for (i = m; i <= M - m; i++) {
+            bbox1 = distBBox(node, 0, i, this.toBBox);
+            bbox2 = distBBox(node, i, M, this.toBBox);
+
+            overlap = intersectionArea(bbox1, bbox2);
+            area = bboxArea(bbox1) + bboxArea(bbox2);
+
+            // choose distribution with minimum overlap
+            if (overlap < minOverlap) {
+                minOverlap = overlap;
+                index = i;
+
+                minArea = area < minArea ? area : minArea;
+
+            } else if (overlap === minOverlap) {
+                // otherwise choose distribution with minimum area
+                if (area < minArea) {
+                    minArea = area;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
+    },
+
+    // sorts node children by the best axis for split
+    _chooseSplitAxis: function (node, m, M) {
+
+        var compareMinX = node.leaf ? this.compareMinX : compareNodeMinX,
+            compareMinY = node.leaf ? this.compareMinY : compareNodeMinY,
+            xMargin = this._allDistMargin(node, m, M, compareMinX),
+            yMargin = this._allDistMargin(node, m, M, compareMinY);
+
+        // if total distributions margin value is minimal for x, sort by minX,
+        // otherwise it's already sorted by minY
+        if (xMargin < yMargin) node.children.sort(compareMinX);
+    },
+
+    // total margin of all possible split distributions where each node is at least m full
+    _allDistMargin: function (node, m, M, compare) {
+
+        node.children.sort(compare);
+
+        var toBBox = this.toBBox,
+            leftBBox = distBBox(node, 0, m, toBBox),
+            rightBBox = distBBox(node, M - m, M, toBBox),
+            margin = bboxMargin(leftBBox) + bboxMargin(rightBBox),
+            i, child;
+
+        for (i = m; i < M - m; i++) {
+            child = node.children[i];
+            extend(leftBBox, node.leaf ? toBBox(child) : child.bbox);
+            margin += bboxMargin(leftBBox);
+        }
+
+        for (i = M - m - 1; i >= m; i--) {
+            child = node.children[i];
+            extend(rightBBox, node.leaf ? toBBox(child) : child.bbox);
+            margin += bboxMargin(rightBBox);
+        }
+
+        return margin;
+    },
+
+    _adjustParentBBoxes: function (bbox, path, level) {
+        // adjust bboxes along the given tree path
+        for (var i = level; i >= 0; i--) {
+            extend(path[i].bbox, bbox);
+        }
+    },
+
+    _condense: function (path) {
+        // go through the path, removing empty nodes and updating bboxes
+        for (var i = path.length - 1, siblings; i >= 0; i--) {
+            if (path[i].children.length === 0) {
+                if (i > 0) {
+                    siblings = path[i - 1].children;
+                    siblings.splice(siblings.indexOf(path[i]), 1);
+
+                } else this.clear();
+
+            } else calcBBox(path[i], this.toBBox);
+        }
+    },
+
+    _initFormat: function (format) {
+        // data format (minX, minY, maxX, maxY accessors)
+
+        // uses eval-type function compilation instead of just accepting a toBBox function
+        // because the algorithms are very sensitive to sorting functions performance,
+        // so they should be dead simple and without inner calls
+
+        var compareArr = ['return a', ' - b', ';'];
+
+        this.compareMinX = new Function('a', 'b', compareArr.join(format[0]));
+        this.compareMinY = new Function('a', 'b', compareArr.join(format[1]));
+
+        this.toBBox = new Function('a', 'return [a' + format.join(', a') + '];');
+    }
+};
+
+
+// calculate node's bbox from bboxes of its children
+function calcBBox(node, toBBox) {
+    node.bbox = distBBox(node, 0, node.children.length, toBBox);
+}
+
+// min bounding rectangle of node children from k to p-1
+function distBBox(node, k, p, toBBox) {
+    var bbox = empty();
+
+    for (var i = k, child; i < p; i++) {
+        child = node.children[i];
+        extend(bbox, node.leaf ? toBBox(child) : child.bbox);
+    }
+
+    return bbox;
+}
+
+function empty() { return [Infinity, Infinity, -Infinity, -Infinity]; }
+
+function extend(a, b) {
+    a[0] = Math.min(a[0], b[0]);
+    a[1] = Math.min(a[1], b[1]);
+    a[2] = Math.max(a[2], b[2]);
+    a[3] = Math.max(a[3], b[3]);
+    return a;
+}
+
+function compareNodeMinX(a, b) { return a.bbox[0] - b.bbox[0]; }
+function compareNodeMinY(a, b) { return a.bbox[1] - b.bbox[1]; }
+
+function bboxArea(a)   { return (a[2] - a[0]) * (a[3] - a[1]); }
+function bboxMargin(a) { return (a[2] - a[0]) + (a[3] - a[1]); }
+
+function enlargedArea(a, b) {
+    return (Math.max(b[2], a[2]) - Math.min(b[0], a[0])) *
+           (Math.max(b[3], a[3]) - Math.min(b[1], a[1]));
+}
+
+function intersectionArea(a, b) {
+    var minX = Math.max(a[0], b[0]),
+        minY = Math.max(a[1], b[1]),
+        maxX = Math.min(a[2], b[2]),
+        maxY = Math.min(a[3], b[3]);
+
+    return Math.max(0, maxX - minX) *
+           Math.max(0, maxY - minY);
+}
+
+function contains(a, b) {
+    return a[0] <= b[0] &&
+           a[1] <= b[1] &&
+           b[2] <= a[2] &&
+           b[3] <= a[3];
+}
+
+function intersects(a, b) {
+    return b[0] <= a[2] &&
+           b[1] <= a[3] &&
+           b[2] >= a[0] &&
+           b[3] >= a[1];
+}
+
+// sort an array so that items come in groups of n unsorted items, with groups sorted between each other;
+// combines selection algorithm with binary divide & conquer approach
+
+function multiSelect(arr, left, right, n, compare) {
+    var stack = [left, right],
+        mid;
+
+    while (stack.length) {
+        right = stack.pop();
+        left = stack.pop();
+
+        if (right - left <= n) continue;
+
+        mid = left + Math.ceil((right - left) / n / 2) * n;
+        select(arr, left, right, mid, compare);
+
+        stack.push(left, mid, mid, right);
+    }
+}
+
+// Floyd-Rivest selection algorithm:
+// sort an array between left and right (inclusive) so that the smallest k elements come first (unordered)
+function select(arr, left, right, k, compare) {
+    var n, i, z, s, sd, newLeft, newRight, t, j;
+
+    while (right > left) {
+        if (right - left > 600) {
+            n = right - left + 1;
+            i = k - left + 1;
+            z = Math.log(n);
+            s = 0.5 * Math.exp(2 * z / 3);
+            sd = 0.5 * Math.sqrt(z * s * (n - s) / n) * (i - n / 2 < 0 ? -1 : 1);
+            newLeft = Math.max(left, Math.floor(k - i * s / n + sd));
+            newRight = Math.min(right, Math.floor(k + (n - i) * s / n + sd));
+            select(arr, newLeft, newRight, k, compare);
+        }
+
+        t = arr[k];
+        i = left;
+        j = right;
+
+        swap(arr, left, k);
+        if (compare(arr[right], t) > 0) swap(arr, left, right);
+
+        while (i < j) {
+            swap(arr, i, j);
+            i++;
+            j--;
+            while (compare(arr[i], t) < 0) i++;
+            while (compare(arr[j], t) > 0) j--;
+        }
+
+        if (compare(arr[left], t) === 0) swap(arr, left, j);
+        else {
+            j++;
+            swap(arr, j, right);
+        }
+
+        if (j <= k) left = j + 1;
+        if (k <= j) right = j - 1;
+    }
+}
+
+function swap(arr, i, j) {
+    var tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+}
+
+
+// export as AMD/CommonJS module or global variable
+if (typeof define === 'function' && define.amd) define('rbush', function () { return rbush; });
+else if (typeof module !== 'undefined') module.exports = rbush;
+else if (typeof self !== 'undefined') self.rbush = rbush;
+else window.rbush = rbush;
+
+})();
+
+},{}],6:[function(require,module,exports){
+! function() {
+    "use strict";
+
+    if (typeof module !== 'undefined') { 
+        var d3 = require('d3'),
+            topojson = require('topojson'),
+            rbush = require('rbush')
+    } else {
+        var d3 = window.d3,
+            topojson = window.topojson,
+            rbush = window.rbush
+    }
+
+    // TODO use turf inside as a dependency?
+    // Copied from turf.inside
+    function inside(pt, polygon) {
+        var polys = polygon.geometry.coordinates
+        // normalize to multipolygon
+        if (polygon.geometry.type === 'Polygon')
+            polys = [polys]
+
+        var insidePoly = false
+        var i = 0
+        while (i < polys.length && !insidePoly) {
+            // check if it is in the outer ring first
+            if (inRing(pt, polys[i][0])) {
+                var inHole = false
+                var k = 1
+                // check for the point in any of the holes
+                while (k < polys[i].length && !inHole) {
+                    if (inRing(pt, polys[i][k])) {
+                        inHole = true
+                    }
+                    k++
+                }
+                if(!inHole)
+                    insidePoly = true
+            }
+            i++
+        }
+        return insidePoly
+    }
+
+    // pt is [x,y] and ring is [[x,y], [x,y],..]
+    function inRing (pt, ring) {
+        var isInside = false
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            var xi = ring[i][0], yi = ring[i][1]
+            var xj = ring[j][0], yj = ring[j][1]
+            var intersect = ((yi > pt[1]) !== (yj > pt[1])) &&
+                (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)
+            if (intersect) isInside = !isInside
+        }
+        return isInside
+    }
+
+    function maxBounds(one, two) {
+        var bounds = two
+        if (one[0][0] < two[0][0])
+            bounds[0][0] = one[0][0]
+        if (one[0][1] < two[0][1])
+            bounds[0][1] = one[0][1]
+        if (one[1][0] > two[1][0])
+            bounds[1][0] = one[1][0]
+        if (one[1][1] > two[1][1])
+            bounds[1][1] = one[1][1]
+        return bounds
+    }
+
+    function createRTree(element, dataPath) {
+        element.lookupTree = rbush(4)
+        var elements = []
+
+        for (var j in element.features.features) {
+            var bounds = dataPath.bounds(element.features.features[j])
+            elements.push([
+                bounds[0][0].toFixed(0),
+                bounds[0][1].toFixed(0),
+                Math.ceil(bounds[1][0]),
+                Math.ceil(bounds[1][1]),
+                element.features.features[j]
+            ])
+        }
+        element.lookupTree.load(elements)
+    }
+
+    function paintFeature(element, feature, parameters) {
+        parameters.context.beginPath()
+        parameters.path(feature)
+        element.static.paintfeature(parameters, feature)
+    }
+
+    function paintBackgroundElement(element, parameters) {
+        if (!element.static)
+            return
+        if (element.static.prepaint)
+            element.static.prepaint(parameters)
+        if (element.static.paintfeature) {
+            var lookup = element.lookupTree.search([
+                parameters.translate[0],
+                parameters.translate[1],
+                parameters.width / parameters.scale - parameters.translate[0],
+                parameters.height / parameters.scale - parameters.translate[1]
+            ])
+            for (var j in lookup) {
+                paintFeature(element, lookup[j][4], parameters)
+            }
+        }
+        if (element.static.postpaint)
+            element.static.postpaint(parameters)
+    }
+
+    function PartialPainter(data, parameters) {
+        var index = 0,
+            j = 0,
+            element = null,
+            currentLookup = []
+
+        this.hasNext = function() {
+            return index <= data.length && j < currentLookup.length
+        }
+        this.renderNext = function() {
+            if (index >= data.length && j >= currentLookup.length)
+                return
+            var start = performance.now()
+            if (!element || j >= currentLookup.length) {
+                while (index < data.length && !data[index].static) {
+                    index++
+                }
+                if (index >= data.length)
+                    return
+                element = data[index]
+
+                if (element.static.prepaint)
+                    element.static.prepaint(parameters)
+
+                currentLookup = element.lookupTree.search([
+                    - parameters.translate[0],
+                    - parameters.translate[1],
+                    parameters.width / parameters.scale - parameters.translate[0],
+                    parameters.height / parameters.scale - parameters.translate[1]
+                ])
+                j = 0
+                ++index
+            }
+            if (element.static.paintfeature) {
+                for (; j != currentLookup.length; ++j) {
+                    var feature = currentLookup[j][4]
+                    paintFeature(element, feature, parameters)
+                    if ((performance.now() - start) > 10)
+                        break
+                }
+            } else {
+                j = currentLookup.length
+            }
+            if (j == currentLookup.length && element.static.postpaint) {
+                element.static.postpaint(parameters)
+            }
+        }
+        this.finish = function() {
+            if (index >= data.length && j >= currentLookup.length)
+                return
+            if (j < currentLookup.length)
+                index--
+            for (; index != data.length; ++index) {
+                if (j >= currentLookup.length) {
+                    while (!data[index].static && index < data.length) {
+                        index++
+                    }
+                    if (index >= data.length)
+                        return
+                    element = data[index]
+
+                    if (element.static.prepaint)
+                        element.static.prepaint(parameters)
+                    currentLookup = element.lookupTree.search([
+                        - parameters.translate[0],
+                        - parameters.translate[1],
+                        parameters.width / parameters.scale - parameters.translate[0],
+                        parameters.height / parameters.scale - parameters.translate[1]
+                    ])
+                    j = 0
+                }
+                if (element.static.paintfeature) {
+                    for (; j != currentLookup.length; ++j) {
+                        var feature = currentLookup[j][4]
+                        paintFeature(element, feature, parameters)
+                    }
+                }
+                if (element.static.postpaint)
+                    element.static.postpaint(parameters)
+            }
+        }
+    }
+
+
+    function translatePoint(point, scale, translate) {
+        return [
+            point[0] / scale - translate[0],
+            point[1] / scale - translate[1]
+        ]
+    }
+
+    function extend(extension, obj) {
+        var newObj = {}
+        // FIXME this is a bit hacky? Can't we just mutate the original obj? (can't bc projection)
+        for (var elem in obj) {
+            newObj[elem] = obj[elem]
+        }
+        for (var elem in extension) {
+            if (!newObj.hasOwnProperty(elem))
+                newObj[elem] = extension[elem]
+        }
+        return newObj
+    }
+
+    function CanvasMap(parameters) {
+        var settings = extend({
+                width: d3.select(parameters.element).node().getBoundingClientRect().width,
+                ratio: 1,
+                area: 0,
+                scale: 1,
+                translate: [0, 0],
+                background: null,
+                backgroundScale: 1,
+                backgroundTranslate: [0, 0],
+                map: this
+            }, parameters),
+            simplify = d3.geo.transform({
+                point: function(x, y, z) {
+                    if (!z || z >= settings.area) {
+                        this.stream.point(x, y)
+                    }
+                }
+            }),
+            canvas = null,
+            context = null
+
+        if (!parameters.projection) {
+            var b = [[Infinity, Infinity],
+                     [-Infinity, -Infinity]]
+            for (var i in settings.data) {
+                b = maxBounds(b, d3.geo.bounds(settings.data[i].features))
+            }
+            settings.projection = d3.geo.mercator()
+                .scale(1)
+                .center([(b[1][0] + b[0][0]) / 2, (b[1][1] + b[0][1]) / 2])
+        }
+        var dataPath = d3.geo.path().projection({
+            stream: function(s) {
+                return simplify.stream(settings.projection.stream(s))
+            }
+        })
+        var b = [[Infinity, Infinity],
+                 [-Infinity, -Infinity]]
+        for (var i in settings.data) {
+            b = maxBounds(b, dataPath.bounds(settings.data[i].features))
+        }
+
+        var dx = b[1][0] - b[0][0],
+            dy = b[1][1] - b[0][1]
+
+        if (!parameters.projection) {
+            settings.height = settings.height || Math.ceil(dy * settings.width / dx)
+            settings.projection.scale(0.9 * (settings.width / dx))
+                .translate([settings.width / 2, settings.height / 2])
+        } else if (!settings.height) {
+            settings.height = Math.ceil(dy * 1 / 0.9)
+        }
+        d3.select(settings.parameters).attr("height", settings.height)
+
+        function init() {
+            canvas = d3.select(settings.element)
+                .append("canvas")
+            context = canvas.node().getContext("2d")
+
+            var devicePixelRatio = window.devicePixelRatio || 1,
+                backingStoreRatio = context.webkitBackingStorePixelRatio ||
+                context.mozBackingStorePixelRatio ||
+                context.msBackingStorePixelRatio ||
+                context.oBackingStorePixelRatio ||
+                context.backingStorePixelRatio || 1
+            settings.ratio = devicePixelRatio / backingStoreRatio
+            settings.area = 1 / settings.projection.scale() / settings.ratio / 25
+
+            canvas.attr("width", settings.width * settings.ratio)
+            canvas.attr("height", settings.height * settings.ratio)
+            canvas.style("width", settings.width + "px")
+            canvas.style("height", settings.height + "px")
+            context.lineJoin = "round"
+            context.lineCap = "round"
+
+            dataPath.context(context)
+            context.clearRect(0, 0, settings.width * settings.ratio, settings.height * settings.ratio)
+            context.save()
+            context.scale(settings.ratio, settings.ratio)
+
+            // TODO move rtree part out?
+            for (var i in settings.data) {
+                createRTree(settings.data[i], dataPath)
+            }
+
+            settings.background = new Image()
+            settings.backgroundScale = settings.scale
+            settings.backgroundTranslate = settings.translate
+            var parameters = {
+                path: dataPath,
+                context: context,
+                scale: settings.scale,
+                translate: settings.translate,
+                width: settings.width,
+                height: settings.height,
+                map: settings.map,
+                projection: settings.projection
+            }
+            var callback = function() {
+                var hasHover = false,
+                    hasClick = false
+                for (var i in settings.data) {
+                    var element = settings.data[i]
+
+                    hasHover = hasHover || (element.events && element.events.hover)
+                    hasClick = hasClick || (element.events && element.events.click)
+
+                    if (element.dynamic && element.dynamic.postpaint)
+                        element.dynamic.postpaint(parameters, null)
+                }
+
+                context.restore()
+
+                hasClick && canvas.on("click", click)
+                hasHover && canvas.on("mousemove", hover)
+                                  .on("mouseleave", hoverLeave)
+            }
+
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (element.dynamic && element.dynamic.prepaint)
+                    element.dynamic.prepaint(parameters, element.hoverElement)
+            }
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                paintBackgroundElement(element, parameters)
+            }
+            settings.background.onload = callback
+            settings.background.src = canvas.node().toDataURL()
+
+            //Prevent another call to the init method
+            this.init = function() {}
+        }
+
+        // TODO probably try to use the same data path in the zoom class, but have a different area settable?
+
+        function paint() {
+            context.save()
+            context.scale(settings.scale * settings.ratio, settings.scale * settings.ratio)
+            context.translate(settings.translate[0], settings.translate[1])
+
+            context.clearRect(- settings.translate[0], - settings.translate[1], settings.width * settings.ratio, settings.height * settings.ratio)
+
+            context.rect(- settings.translate[0], - settings.translate[1],
+                settings.width / settings.scale,
+                settings.height / settings.scale)
+            context.clip()
+
+
+            // FIXME this needs a way for the callback to use the lookupTree?
+            var parameters = {
+                path: dataPath,
+                context: dataPath.context(),
+                scale: settings.scale,
+                translate: settings.translate,
+                width: settings.width,
+                height: settings.height,
+                map: settings.map,
+                projection: settings.projection
+            }
+
+            settings.area = 1 / settings.projection.scale() / settings.scale / settings.ratio / 25
+
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (element.dynamic && element.dynamic.prepaint)
+                    element.dynamic.prepaint(parameters, element.hoverElement)
+            }
+
+            context.drawImage(settings.background, 0, 0,
+                settings.width * settings.ratio, settings.height * settings.ratio,
+                - settings.backgroundTranslate[0],
+                - settings.backgroundTranslate[1],
+                settings.width / settings.backgroundScale, settings.height / settings.backgroundScale)
+
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (element.dynamic && element.dynamic.postpaint)
+                    element.dynamic.postpaint(parameters, element.hoverElement)
+            }
+
+            context.restore()
+        }
+
+        function click() {
+            var point = translatePoint(d3.mouse(this), settings.scale, settings.translate)
+
+            var parameters = {
+                scale: settings.scale,
+                translate: settings.translate,
+                width: settings.width,
+                height: settings.height,
+                map: settings.map,
+                projection: settings.projection
+            }
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (!element.events || !element.events.click)
+                    continue
+
+                var lookup = element.lookupTree.search([point[0], point[1], point[0], point[1]])
+                var isInside = false
+                for (var j in lookup) {
+                    var feature = lookup[j][4]
+                    if (inside(settings.projection.invert(point), feature)) {
+                        element.events.click(parameters, feature)
+                        isInside = true
+                    }
+                }
+                isInside || element.events.click(parameters, null)
+            }
+        }
+
+        function hoverLeave() {
+            var parameters = {
+                scale: settings.scale,
+                translate: settings.translate,
+                width: settings.width,
+                height: settings.height,
+                map: settings.map,
+                projection: settings.projection
+            }
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (!element.events || !element.events.hover)
+                    continue
+                element.hoverElement = false
+                element.events.hover(parameters, null)
+            }
+        }
+
+        function hover() {
+            var point = translatePoint(d3.mouse(this), settings.scale, settings.translate),
+                parameters = {
+                    scale: settings.scale,
+                    translate: settings.translate,
+                    width: settings.width,
+                    height: settings.height,
+                    map: settings.map
+                }
+
+            for (var i in settings.data) {
+                var element = settings.data[i]
+                if (!element.events || !element.events.hover ||
+                    (element.hoverElement && inside(settings.projection.invert(point), element.hoverElement))) {
+                    continue
+                }
+                element.hoverElement = false
+                var lookup = element.lookupTree.search([point[0], point[1], point[0], point[1]])
+                for (var j in lookup) {
+                    var feature = lookup[j][4]
+                    if (inside(settings.projection.invert(point), feature)) {
+                        element.hoverElement = feature
+                        break
+                    }
+                }
+                element.events.hover(parameters, element.hoverElement)
+            }
+        }
+
+        this.init = init
+        this.paint = paint
+        this.settings = function() {
+            return settings
+        }
+    }
+
+    function StaticCanvasMap(parameters) {
+        var map = new CanvasMap(parameters)
+
+        this.init = function() {
+            map.init()
+        }
+        this.paint = function() {
+            map.paint()
+        }
+    }
+
+    var epsilon = 0.5
+    function nearEqual(a, b) {
+        return Math.abs(a - b) < epsilon
+    }
+
+    function ImageCache(parameters) {
+        var cache = [],
+            settings = parameters
+
+        this.addImage = function(parameters) {
+            cache.push(parameters)
+        }
+
+        this.getImage = function(parameters) {
+            for (var i in cache) {
+                var element = cache[i]
+                if (nearEqual(element.scale, parameters.scale) &&
+                    nearEqual(element.translate[0], parameters.translate[0]) &&
+                    nearEqual(element.translate[1], parameters.translate[1]))
+                    return element
+            }
+            return null
+        }
+
+        this.getFittingImage = function(bbox) {
+            // Auto set scale=1, translate[0, 0] image as default return
+            var currentImage = cache.length > 0 ? cache[0] : null
+            for (var i in cache) {
+                var image = cache[i]
+                var imageBB = [
+                    - image.translate[0],
+                    - image.translate[1],
+                    settings.width / image.scale - image.translate[0],
+                    settings.height / image.scale - image.translate[1]
+                ]
+                if (imageBB[0] <= bbox[0] &&
+                    imageBB[1] <= bbox[1] &&
+                    imageBB[2] >= bbox[2] &&
+                    imageBB[3] >= bbox[3] &&
+                    (!currentImage || currentImage.scale < image.scale)) {
+                    currentImage = image
+                }
+            }
+            return currentImage
+        }
+    }
+
+    function ZoomableCanvasMap(parameters) {
+        var map = new CanvasMap(parameters),
+            simplify = d3.geo.transform({
+                point: function(x, y, z) {
+                    if (z >= area) this.stream.point(x, y)
+                }
+            }),
+            area = 0,
+            canvas = null,
+            context = null,
+            settings = map.settings(),
+            dataPath = d3.geo.path().projection({
+                stream: function(s) {
+                    return simplify.stream(settings.projection.stream(s))
+                }
+            }),
+            imageCache = new ImageCache({
+                width: settings.width,
+                height: settings.height
+            }),
+            busy = false
+
+        settings.map = this
+        settings.zoomScale = settings.zoomScale || 0.5
+
+        this.init = function() {
+            map.init()
+
+            canvas = d3.select(settings.element)
+                .append("canvas")
+            context = canvas.node().getContext("2d")
+            area = 1 / settings.projection.scale() / settings.ratio / 25
+
+            canvas.attr("width", settings.width * settings.ratio)
+            canvas.attr("height", settings.height * settings.ratio)
+            canvas.style("width", settings.width + "px")
+            canvas.style("height", settings.height + "px")
+            canvas.style("display", "none")
+            context.lineJoin = "round"
+            context.lineCap = "round"
+
+            dataPath.context(context)
+
+            imageCache.addImage({
+                image: settings.background,
+                scale: settings.scale,
+                translate: settings.translate
+            })
+        }
+        this.paint = function() {
+            map.paint()
+        }
+        function scaleZoom(scale, translate) {
+            if (busy) {
+                return
+            }
+            busy = true
+            if (nearEqual(scale, settings.scale) &&
+                nearEqual(translate[0], settings.translate[0]) &&
+                nearEqual(translate[1], settings.translate[1])) {
+                scale = 1
+                translate = [0, 0]
+            }
+            if (scale == 1 && settings.scale == 1 &&
+                !translate[0] && !translate[1] &&
+                !settings.translate[0] && !settings.translate[1]) {
+                busy = false
+                return
+            }
+            area = 1 / settings.projection.scale() / scale / settings.ratio / 25
+
+            context.save()
+            context.scale(scale * settings.ratio, scale * settings.ratio)
+            context.translate(translate[0], translate[1])
+            context.clearRect(- translate[0], - translate[1], settings.width * settings.ratio, settings.height * settings.ratio)
+            var parameters = {
+                path: dataPath,
+                context: context,
+                scale: scale,
+                translate: translate,
+                width: settings.width,
+                height: settings.height,
+                map: settings.map,
+                projection: settings.projection
+            }
+
+            var image = imageCache.getImage({
+                scale: scale,
+                translate: translate
+            })
+            if (!image) {
+                var background = new Image(),
+                    partialPainter = new PartialPainter(settings.data, parameters)
+            }
+
+            var translatedOne = translatePoint([settings.width, settings.height], scale, translate),
+                translatedTwo = translatePoint([settings.width, settings.height], settings.scale, settings.translate)
+            var bbox = [
+                Math.min(- translate[0], - settings.translate[0]),
+                Math.min(- translate[1], - settings.translate[1]),
+                Math.max(translatedOne[0], translatedTwo[0]),
+                Math.max(translatedOne[1], translatedTwo[1])
+            ]
+            var zoomImage = imageCache.getFittingImage(bbox)
+            if (zoomImage) {
+                settings.background = zoomImage.image
+                settings.backgroundScale = zoomImage.scale
+                settings.backgroundTranslate = zoomImage.translate
+            }
+            d3.transition()
+                .duration(300)
+                .ease("linear")
+                .tween("zoom", function() {
+                    var i = d3.interpolateNumber(settings.scale, scale),
+                        oldTranslate = settings.translate,
+                        oldScale = settings.scale
+                    return function(t) {
+                        settings.scale = i(t)
+                        var newTranslate = [
+                            oldTranslate[0] + (translate[0] - oldTranslate[0]) / (scale - oldScale) * (i(t) - oldScale) * scale / i(t),
+                            oldTranslate[1] + (translate[1] - oldTranslate[1]) / (scale - oldScale) * (i(t) - oldScale) * scale / i(t),
+                        ]
+                        settings.translate = newTranslate
+                        map.paint()
+                        !image && partialPainter.renderNext()
+                    }
+                })
+                .each("end", function() {
+                    settings.scale = scale
+                    settings.translate = translate
+
+                    if (image) {
+                        context.restore()
+                        settings.background = image.image
+                        settings.backgroundScale = image.scale
+                        settings.backgroundTranslate = image.translate
+                        map.paint()
+                    } else {
+                        map.paint()
+                        partialPainter.finish()
+                        background.onload = function() {
+                            context.restore()
+                            imageCache.addImage({
+                                image: background,
+                                scale: scale,
+                                translate: translate
+                            })
+                            settings.background = background
+                            settings.backgroundScale = scale
+                            settings.backgroundTranslate = translate
+                            map.paint()
+                        }
+                        // TODO there is a function to get the image data from the context, is that faster?
+                        // TODO use getImageData/putImageData, because it's faster?
+                        background.src = canvas.node().toDataURL()
+                    }
+                    busy = false
+                })
+        }
+        this.zoom = function(d) {
+            if (!d) {
+                scaleZoom.call(this, 1, [0, 0])
+                return
+            }
+            var bounds = dataPath.bounds(d),
+                dx = bounds[1][0] - bounds[0][0],
+                dy = bounds[1][1] - bounds[0][1],
+                bx = (bounds[0][0] + bounds[1][0]) / 2,
+                by = (bounds[0][1] + bounds[1][1]) / 2,
+                scale = settings.zoomScale *
+                    Math.min(settings.width / dx, settings.height / dy),
+                translate = [-bx + settings.width / scale / 2,
+                             -by + settings.height / scale / 2]
+
+            scaleZoom.call(this, scale, translate)
+        }
+    }
+    if (typeof module !== 'undefined') {
+        module.exports = {
+            StaticCanvasMap: StaticCanvasMap,
+            ZoomableCanvasMap: ZoomableCanvasMap
+        }
+    } else {
+        window.StaticCanvasMap = StaticCanvasMap
+        window.ZoomableCanvasMap = ZoomableCanvasMap
+    }
+}()
+
+},{"d3":2,"rbush":5,"topojson":7}],7:[function(require,module,exports){
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -10769,4 +12135,4 @@ exports.match = match;
   exports.presimplify = presimplify;
 
 }));
-},{}]},{},[4]);
+},{}]},{},[1]);

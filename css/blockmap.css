@@ -1,6 +1,7 @@
 body
 {
     background-color: white;
+    font-family: Helvetica, Arial,Sans
 }
 
 svg 
@@ -39,3 +40,41 @@ path.block
     fill:gray;
     fill-opacity: 1;
 }
+
+#map-controls {
+    margin-bottom: 3px;
+}
+
+#map-controls .pill
+{
+    float: left;
+    color: gray;
+
+    border-radius: 3px;
+    margin-right: 3px;
+
+    padding-left: 3px;
+    padding-right: 3px;
+    font-size: 0.9em;
+}
+
+.loading
+{
+    display: none;
+}
+
+#map-controls .pill.clickable
+{
+    background-color: gainsboro;
+}
+
+#map-controls .pill.clickable:hover{
+    background-color: lightskyblue;
+    color: white;
+}
+		
+.clear-both
+{
+    clear: both;
+}
+	       
