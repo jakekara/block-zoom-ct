@@ -19,7 +19,7 @@ path
 		      
 path.town
 {
-    stroke: gray;
+    stroke: white;
     fill: white;
     fill-opacity: 1;
 }
@@ -83,4 +83,22 @@ path.block
 {
     clear: both;
 }
-	       
+
+#tilemap
+{
+    z-index: 100;
+    position: absolute;
+}    
+
+#container
+{
+    z-index: 200;
+    /* position: absolute; */
+    /* top: 0px; */
+    /* left: 0px; */
+}
+
+#dual_container
+{
+    position: reative;
+}

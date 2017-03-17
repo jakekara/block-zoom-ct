@@ -443,6 +443,7 @@ const town_names = require("./townnames.js");
 var index; 			// bounding box index
 var loaded_objs = {}; 		// cache of layers
 var townmap; 			// base map
+var zoom_town = "";
 
 /* 
  * load_bbox_index - load the  bounding box index, store it in index variable.
@@ -520,6 +521,8 @@ var zoom_to_town = function( townpath, d )
 	.classed("clickable", false)
 	.on("click", null)
 	.text(town_names.display_name(d.id))
+
+    zoom_town = town_names.display_name(d.id);
     
     var layers = find_blocks(d3.select(townpath).node().getBBox());
     var timeout;
@@ -553,9 +556,17 @@ var zoom_to_town = function( townpath, d )
 		    var down_speed = a["properties"]["block_speed_2016_MaxAdDown"];
 		    var up_speed = a["properties"]["block_speed_2016_MaxAdUp"];
 
+		    if ((Number.isNaN(down_speed) || Number.isNaN(up_speed))||
+			(Number(down_speed) == 0 || Number(up_speed) == 0))
+			return "white";
+
 		    if (Number(down_speed) >= 25 && Number(up_speed) >= 3)
-			return "green";
-		    return "red";
+			return "lightgreen";
+
+		    if (Number(down_speed) >= 4 && Number(up_speed) >= 1)
+			return "orange";
+		    
+		    return "tomato";
 		});
     
 
@@ -628,6 +639,7 @@ var make_zoomy = function()
  */
 zoomout = function(){
 
+    zoom_town = "";
     d3.select(".town-name")
 	.html("&nbsp;");
     d3.select(".block-name")
@@ -661,17 +673,96 @@ var done_loading = function()
     d3.select(".loading").style("display",null);
 }
 
+// show_leaflet = function()
+// {
+
+//     var bbox = townmap.__svg.node().getBoundingClientRect();
+    
+//     d3.select("#tilemap")
+// 	.style("width",bbox.width + "px")
+// 	.style("height", bbox.height + "px")
+// 	.style("left", bbox.left + "px")
+// 	.style("top",bbox.top + "px");
+
+    
+//     mapboxgl.accessToken = 'pk.eyJ1IjoiamthcmEiLCJhIjoiY2owZTU2YnlpMDEyMTJxdWlsNHozcTc1eCJ9.EiICVDDL4U3gdNLgqQ_UQg';
+    
+//     const map = new mapboxgl.Map({
+// 	container: 'tilemap',
+// 	style: 'mapbox://styles/mapbox/streets-v9'
+//     });
+
+//     bbox = townmap.__g.node().getBBox();
+    
+//     var projection = townmap.projection()(townmap.container().node());
+//     var town_bl = projection.invert([bbox.x,(bbox.y + bbox.height)]);
+//     var town_tr = projection.invert([(bbox.x + bbox.width), bbox.y]);
+//     var llb = new mapboxgl.LngLatBounds(town_bl, town_tr);
+//     map.fitBounds(llb);
+// }
+
 /* 
  * main
  */
+
+var town_speeds;
+
+d3.csv("data/town_pct_slow_2016.csv", function(d){
+    town_speeds = d;
+});
+
+var town_data = function(town)
+{
+    return town_speeds.filter(function(a){
+	return town_names.match(a["town"], town);
+    });
+}
+
+var color_towns = function()
+{
+    if ( townmap.__drawn != true )
+    {
+	setTimeout(color_towns, 100);
+	return;
+    }
+    
+    townmap.color(function(d){
+	var data = town_data(d.id);
+	if (data.length <= 0) return "lightgreen";
+	
+	if ( Number(data[0]["percent slow"]) > 25 )
+	    return "tomato";
+	if ( Number(data[0]["percent slow"]) > 10 )
+	    return "orange";
+
+	return "lightgreen";
+    });
+
+    var tmp_town = "";
+    
+    townmap.__g.selectAll("path")
+	.on("mouseover", function(d){
+	    d3.select(".town-name").text(
+		town_names.display_name(d.id)
+	    );
+	})
+	.on("mouseout", function(){
+	    d3.select(".town-name").text(zoom_town);
+	});
+}
+
 var main = function()
 {
     load_bbox_index();
+
     townmap = ct_towns(d3.select("#container"));
     d3.select(".state-name")
 	.text("Connecticut")
     
     make_zoomy();
+
+    color_towns();
+
 };
 
 main();
