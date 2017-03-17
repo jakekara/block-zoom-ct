@@ -45,15 +45,6 @@ var add_block = function( block_no )
 
     // color based on bandwidth
     var ret = loaded_objs[block_no];
-    ret.color(function(a){
-	var down_speed = a["properties"]["block_speed_2016_MaxAdDown"];
-	var up_speed = a["properties"]["block_speed_2016_MaxAdUp"];
-
-	if (Number(down_speed) >= 25 && Number(up_speed) >= 3)
-	    return "green";
-	return "red";
-	
-    });
     
     return ret;
 }
@@ -123,6 +114,16 @@ var zoom_to_town = function( townpath, d )
 		timeout = setTimeout(zoom_when_loaded, 50);
 		return;
 	    }
+	        layers[i].color(function(a){
+		    var down_speed = a["properties"]["block_speed_2016_MaxAdDown"];
+		    var up_speed = a["properties"]["block_speed_2016_MaxAdUp"];
+
+		    if (Number(down_speed) >= 25 && Number(up_speed) >= 3)
+			return "green";
+		    return "red";
+		});
+    
+
 	}
 
 	var town_d = d;
