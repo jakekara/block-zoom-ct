@@ -63,8 +63,14 @@ path.block
     display: none;
 }
 
+#map-controls .pill
+{
+    cursor: default;
+}
+
 #map-controls .pill.clickable
 {
+    cursor: zoom-out;
     background-color: gainsboro;
 }
 

@@ -16,7 +16,9 @@ exports.smap = smap;
 // set the stroke-width when the map is not zoomed in
 smap.prototype.stroke_width = function(w)
 {
-    if ( typeof(w) == "undefined" ) return this.__stroke_width || 1;
+    if ( typeof(w) == "undefined" ) {
+	return this.__stroke_width || 1;
+    }
     this.__stroke_width = w;
     return this;
 }
@@ -216,7 +218,7 @@ smap.prototype.zoom_to = function(d)
         .style("stroke-width", stroke + "px")
         .classed("active", this.__centered && function(d) {
 	    return d === this.__centered; });
-
+    
     // this.__g.transition()
     this.__svg.selectAll("g")
 	.transition()

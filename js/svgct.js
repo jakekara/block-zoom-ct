@@ -34,17 +34,15 @@ var add_block = function( block_no )
     else
     {
 	loaded_objs[block_no] = new smap()
+	    .stroke_width(2)
 	    .add_to(townmap)
 	    .topojson("shapes/" + block_no + ".topojson")
-	    .stroke_width(2)
 	    .features(function(topo){
 		return topo["objects"];
 	    })
 	    .draw();
     }
 
-    console.log("returning ", loaded_objs[block_no]);
-		
     return loaded_objs[block_no]; 
 }
 
@@ -76,12 +74,14 @@ var zoom_to_town = function( townpath, d )
 {
     console.log("zoom_to_town", d.id);
 
-    d3.selectAll(".town-name")
+    d3.selectAll(".state-name")
 	.classed("clickable", true)
+    	.on("click", zoomout);
+    
+    d3.selectAll(".town-name")
+	.classed("clickable", false)
+	.on("click", null)
 	.text(town_names.display_name(d.id))
-	.on("click", function(){
-	    zoom_to_town(townpath, d);
-	});
     
     var layers = find_blocks(d3.select(townpath).node().getBBox());
     var timeout;
@@ -113,12 +113,19 @@ var zoom_to_town = function( townpath, d )
 	    }
 	}
 
+	var town_d = d;
 	// make the block-level maps zoomable as well. oh yeah we did.
 	layers.forEach(function(a){
 	    a.__g.selectAll(".subobj")
 		.classed("block", true)
 		.on("click", function(d){
-		    console.log(d);
+
+		    d3.selectAll(".town-name")
+			.classed("clickable", true)
+		    	.on("click", function(){
+			    zoom_to_town(townpath, town_d);
+			});
+
 		    d3.select(".block-name")
 			.text("Census Block " + d["properties"]["GEOID10"]);
 		    a.zoom_to(d);
@@ -163,7 +170,6 @@ var make_zoomy = function()
 	.on("click", function(d){
 	    var townpath = this;
 	    zoom_to_town(townpath, d);
-	    
 	});
 }
 
@@ -176,6 +182,10 @@ zoomout = function(){
 	.html("&nbsp;");
     d3.select(".block-name")
 	.html("&nbsp;");
+
+    d3.selectAll("#map-controls .pill")
+	.classed("clickable", false)
+	.on("click", null);
     
     // reset CSS and zoom out
     d3.selectAll("g").classed("closeup", false);
@@ -210,8 +220,7 @@ var main = function()
     townmap = ct_towns(d3.select("#container"));
     d3.select(".state-name")
 	.text("Connecticut")
-	.classed("clickable", true)
-	.on("click", zoomout);
+    
     make_zoomy();
 };
 

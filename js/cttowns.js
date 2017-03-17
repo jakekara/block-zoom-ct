@@ -18,6 +18,7 @@ var ct_towns = function(selection)
     var brect = selection.node().getBoundingClientRect();
 
     map.container(selection)
+	.stroke_width(1)
 	.topojson("shapes/ct_towns.topojson")
 	.height(height).width(width)
 	.projection(function(element){
