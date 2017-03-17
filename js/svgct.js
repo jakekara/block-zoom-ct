@@ -43,7 +43,19 @@ var add_block = function( block_no )
 	    .draw();
     }
 
-    return loaded_objs[block_no]; 
+    // color based on bandwidth
+    var ret = loaded_objs[block_no];
+    ret.color(function(a){
+	var down_speed = a["properties"]["block_speed_2016_MaxAdDown"];
+	var up_speed = a["properties"]["block_speed_2016_MaxAdUp"];
+
+	if (Number(down_speed) >= 25 && Number(up_speed) >= 3)
+	    return "green";
+	return "red";
+	
+    });
+    
+    return ret;
 }
 
 /*
@@ -72,7 +84,7 @@ var find_blocks = function(bbox)
 
 var zoom_to_town = function( townpath, d )
 {
-    console.log("zoom_to_town", d.id);
+    // console.log("zoom_to_town", d.id);
 
     d3.selectAll(".state-name")
 	.classed("clickable", true)
@@ -120,6 +132,8 @@ var zoom_to_town = function( townpath, d )
 		.classed("block", true)
 		.on("click", function(d){
 
+		    console.log(d);
+		    
 		    d3.selectAll(".town-name")
 			.classed("clickable", true)
 		    	.on("click", function(){

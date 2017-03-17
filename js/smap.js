@@ -117,6 +117,7 @@ smap.prototype.add_svg = function(svg)
     if (typeof(this.__svg) == "undefined")
     {
 	this.__svg = this.container().append("svg")
+	    .attr("shape-rendering","geometricPrecision")
 	    .attr("width", this.width() + "px")
 	    .attr("height", this.height() + "px");
     }
