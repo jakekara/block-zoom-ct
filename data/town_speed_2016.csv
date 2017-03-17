@@ -1,0 +1,168 @@
+town,MaxAdUp,MaxAdDown
+Ansonia,35.0,150.0
+Ashford,12.0,115.0
+Avon,12.0,150.0
+Barkhamsted,12.0,115.0
+Beacon Falls,12.0,150.0
+Berlin,30.0,300.0
+Bethany,35.0,150.0
+Bethel,35.0,150.0
+Bethlehem,35.0,115.0
+Bloomfield,12.0,150.0
+Bolton,12.0,150.0
+Bozrah,12.0,150.0
+Branford,12.0,150.0
+Bridgeport,35.0,115.0
+Bridgewater,12.0,115.0
+Bristol,12.0,150.0
+Brookfield,12.0,150.0
+Brooklyn,5.0,100.0
+Burlington,12.0,150.0
+Canterbury,10.0,120.0
+Canton,12.0,150.0
+Chaplin,5.0,100.0
+Cheshire,30.0,300.0
+Chester,10.0,150.0
+Clinton,12.0,150.0
+Colchester,12.0,150.0
+Colebrook,12.0,115.0
+Columbia,10.0,150.0
+Cornwall,35.0,150.0
+Coventry,12.0,150.0
+Cromwell,12.0,150.0
+Danbury,35.0,150.0
+Darien,35.0,115.0
+Deep River,10.0,150.0
+Derby,35.0,150.0
+Durham,12.0,150.0
+East Granby,30.0,300.0
+East Haddam,12.0,150.0
+East Hampton,10.0,150.0
+East Hartford,30.0,300.0
+East Haven,12.0,150.0
+East Lyme,12.0,120.0
+East Windsor,30.0,300.0
+Eastford,5.0,100.0
+Easton,35.0,115.0
+Ellington,30.0,300.0
+Enfield,30.0,300.0
+Essex,10.0,150.0
+Fairfield,35.0,115.0
+Farmington,12.0,150.0
+Franklin,12.0,150.0
+Glastonbury,1000.0,1000.0
+Goshen,35.0,101.0
+Granby,30.0,300.0
+Greenwich,100.0,115.0
+Griswold,12.0,150.0
+Groton,20.0,150.0
+Guilford,12.0,150.0
+Haddam,10.0,150.0
+Hamden,30.0,300.0
+Hampton,5.0,100.0
+Hartford,12.0,150.0
+Hartland,30.0,300.0
+Harwinton,35.0,150.0
+Hebron,12.0,150.0
+Kent,35.0,101.0
+Killingly,10.0,120.0
+Killingworth,12.0,150.0
+Lebanon,12.0,150.0
+Ledyard,20.0,150.0
+Lisbon,12.0,150.0
+Litchfield,35.0,115.0
+Lyme,12.0,150.0
+Madison,12.0,150.0
+Manchester,30.0,300.0
+Mansfield,12.0,115.0
+Marlborough,10.0,150.0
+Meriden,30.0,300.0
+Middlebury,35.0,150.0
+Middlefield,12.0,150.0
+Middletown,12.0,150.0
+Milford,35.0,115.0
+Monroe,35.0,150.0
+Montville,12.0,120.0
+Morris,35.0,101.0
+Naugatuck,12.0,150.0
+New Britain,30.0,300.0
+New Canaan,35.0,115.0
+New Fairfield,12.0,150.0
+New Hartford,35.0,150.0
+New Haven,35.0,150.0
+New London,12.0,120.0
+New Milford,12.0,115.0
+Newington,30.0,300.0
+Newmilford,12.0,115.0
+Newtown,35.0,150.0
+Norfolk,35.0,150.0
+North Branford,12.0,150.0
+North Canaan,10.0,150.0
+North Haven,12.0,150.0
+North Stonington,10.0,150.0
+Norwalk,35.0,115.0
+Norwich,12.0,150.0
+Old Lyme,12.0,150.0
+Old Saybrook,12.0,150.0
+Oldlyme,12.0,150.0
+Orange,35.0,150.0
+Oxford,12.0,150.0
+Plainfield,10.0,120.0
+Plainville,30.0,300.0
+Plymouth,35.0,150.0
+Pomfret,10.0,120.0
+Portland,12.0,150.0
+Preston,12.0,150.0
+Prospect,30.0,300.0
+Putnam,10.0,120.0
+Redding,35.0,150.0
+Ridgefield,35.0,150.0
+Rocky Hill,30.0,300.0
+Roxbury,12.0,115.0
+Salem,12.0,150.0
+Salisbury,10.0,150.0
+Scotland,5.0,100.0
+Seymour,35.0,150.0
+Sharon,35.0,150.0
+Shelton,35.0,150.0
+Sherman,12.0,115.0
+Simsbury,12.0,150.0
+Somers,30.0,300.0
+South Windsor,1000.0,1000.0
+Southbury,12.0,150.0
+Southington,30.0,300.0
+Sprague,10.0,150.0
+Stafford,30.0,300.0
+Stamford,35.0,115.0
+Sterling,10.0,120.0
+Stonington,30.0,150.0
+Stratford,35.0,150.0
+Suffield,30.0,300.0
+Thomaston,35.0,150.0
+Thompson,10.0,120.0
+Tolland,12.0,150.0
+Torrington,35.0,115.0
+Trumbull,35.0,150.0
+Vernon,30.0,300.0
+Wallingford,30.0,300.0
+Warren,35.0,101.0
+Washington,35.0,101.0
+Waterbury,35.0,150.0
+Waterford,12.0,120.0
+Watertown,35.0,150.0
+West Hartford,12.0,150.0
+West Haven,35.0,150.0
+Westbrook,12.0,150.0
+Weston,35.0,115.0
+Westport,35.0,115.0
+Wethersfield,30.0,300.0
+Willington,30.0,300.0
+Wilton,35.0,150.0
+Winchester,35.0,115.0
+Windham,12.0,115.0
+Windsor,12.0,150.0
+Windsor Locks,30.0,300.0
+Wolcott,12.0,150.0
+Woodbridge,35.0,150.0
+Woodbury,35.0,115.0
+Woodstock,10.0,120.0

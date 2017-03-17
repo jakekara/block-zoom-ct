@@ -22,6 +22,11 @@ path.town
     stroke: white;
     fill: white;
     fill-opacity: 1;
+    cursor: pointer;
+}
+
+path.town:hover{
+    fill-opacity: 0.5;
 }
 
 .closeup path.town
